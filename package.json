@@ -1,0 +1,35 @@
+{
+  "name": "voxel-world",
+  "author": "Jérémie PIELLARD <jeremie.piellard@gmail.com> (https://github.com/piellardj)",
+  "repository": "github:piellardj/voxel-world",
+  "private": true,
+  "scripts": {
+    "pre-commit": "npm run rebuild && npm run lint",
+    "http-server": "http-server ./docs -p 8085 -c-1",
+    "build": "npm run webpack",
+    "clean": "shx rm -rf docs",
+    "lint": "eslint src/ts -c src/config/.eslintrc.json --ext .ts --fix",
+    "rebuild": "npm run clean && npm run build",
+    "webpack": "webpack --config src/config/webpack.config.js --watch"
+  },
+  "engine": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/dat.gui": "^0.7.12",
+    "@types/node": "^20.11.17",
+    "@types/three": "^0.161.2",
+    "@typescript-eslint/eslint-plugin": "^7.0.1",
+    "@typescript-eslint/parser": "^7.0.1",
+    "dat.gui": "^0.7.9",
+    "eslint": "^8.56.0",
+    "http-server": "^14.1.1",
+    "shx": "^0.3.4",
+    "simplex-noise": "^4.0.1",
+    "three": "^0.161.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.90.1",
+    "webpack-cli": "^5.1.4"
+  }
+}

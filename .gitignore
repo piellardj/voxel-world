@@ -1,0 +1,6 @@
+node_modules
+*generated.*
+debug.log
+public
+docs/script/main*
+docs/css
