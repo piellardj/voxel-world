@@ -1,7 +1,7 @@
 import { Debouncer } from "./helpers/debouncer";
 import { OrbitControls, Stats, THREE } from "./three-usage";
 import { Time } from "./helpers/time/time";
-import { GUI } from "dat.gui";
+// import { GUI } from "dat.gui";
 import { Terrain } from "./terrain/terrain";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 
@@ -14,13 +14,13 @@ class Engine {
     private readonly terrain: Terrain;
 
     private readonly stats: Stats;
-    private readonly gui: GUI;
+    // private readonly gui: GUI;
 
     public constructor() {
         this.stats = new Stats();
         document.body.appendChild(this.stats.dom);
 
-        this.gui = new GUI();
+        // this.gui = new GUI();
 
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
