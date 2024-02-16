@@ -1,6 +1,6 @@
 import { getUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
-import { Patch } from "./patch";
+import { Patch } from "./patch-compact-normals";
 import { VoxelMap } from "./voxel-map";
 
 class Terrain {
@@ -13,7 +13,7 @@ class Terrain {
         const mapHeight = getUrlNumber("mapheight", 512);
         const map = new VoxelMap(mapWidth, mapHeight, 10);
 
-        const patchSize = getUrlNumber("patchsize", 256);
+        const patchSize = getUrlNumber("patchsize", 512);
         for (let iPatchX = 0; iPatchX < map.size.x; iPatchX += patchSize) {
             for (let iPatchZ = 0; iPatchZ < map.size.z; iPatchZ += patchSize) {
                 const patchStart = new THREE.Vector3(iPatchX, 0, iPatchZ);
