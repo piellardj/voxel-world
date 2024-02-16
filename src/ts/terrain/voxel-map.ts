@@ -23,7 +23,7 @@ class VoxelMap {
     }
 
     public getY(x: number, z: number): number{
-        if (x > 0 && x < this.size.x && z >= 0 && z < this.size.z) {
+        if (x >= 0 && x < this.size.x && z >= 0 && z < this.size.z) {
             const index = this.buildId(x, z);
             return this.voxels[index];
         }
