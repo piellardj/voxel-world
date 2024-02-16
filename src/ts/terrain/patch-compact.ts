@@ -1,6 +1,16 @@
 import { THREE } from "../three-usage";
 import { VoxelMap } from "./voxel-map";
 
+const positionBytesShift = 3; // enough to store the 6 normal values
+const bytesPerPositionComponent = 8;
+function encodePositionAndNormalCode(x: number, y: number, z: number, normalCode: number): number {
+    if (x > Patch.maxPatchSize || y > Patch.maxPatchSize || z > Patch.maxPatchSize) {
+        throw new Error();
+    }
+    const encodedPosition = x + (y << bytesPerPositionComponent) + (z << (2 * bytesPerPositionComponent));
+    return normalCode + (encodedPosition << positionBytesShift);
+}
+
 const normalVectors = [
     new THREE.Vector3(0, +1, 0),
     new THREE.Vector3(0, -1, 0),
@@ -11,19 +21,28 @@ const normalVectors = [
 ];
 
 class Patch {
+    public static readonly maxPatchSize: number = (1 << bytesPerPositionComponent) - 1;
+
     private static material: THREE.ShaderMaterial = new THREE.ShaderMaterial({
         vertexShader: `
-        attribute uint aNormal;
+        attribute uint aEncodedVertexData;
 
         flat varying vec3 vWorldNormal;
         
         void main(void) {
+            vec3 position = vec3(uvec3(
+                (aEncodedVertexData >> ${positionBytesShift}u) & ${(1 << bytesPerPositionComponent) - 1}u,
+                (aEncodedVertexData >> ${bytesPerPositionComponent + positionBytesShift}u) & ${(1 << bytesPerPositionComponent) - 1}u,
+                (aEncodedVertexData >> ${2 * bytesPerPositionComponent + positionBytesShift}u) & ${(1 << bytesPerPositionComponent) - 1}u
+            ));
+
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 
             vec3 normals[6] = vec3[](
                 ${normalVectors.map(vec3 => `vec3(${vec3.x},${vec3.y},${vec3.z})`).join(", ")}
             );
-            vWorldNormal = normals[aNormal];
+            uint normalCode = aEncodedVertexData & ${(1 << positionBytesShift) - 1}u;
+            vWorldNormal = normals[normalCode];
         }`,
         fragmentShader: `precision mediump float;
 
@@ -37,7 +56,9 @@ class Patch {
 
     public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {
         const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
-
+        if (Math.max(patchSize.x, patchSize.y, patchSize.z) > Patch.maxPatchSize) {
+            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${Patch.maxPatchSize})`);
+        }
         const voxelsCountPerPatch = patchSize.x * patchSize.z;
 
         const vXpYpZp = new THREE.Vector3(1, 1, 1);
@@ -88,12 +109,10 @@ class Patch {
             },
         };
 
-        const vertices = new Float32Array(voxelsCountPerPatch * 6 * 4 * 3);
-        const normals = new Uint32Array(voxelsCountPerPatch * 6 * 4 * 1);
+        const encodedVerticesAndNormals = new Uint32Array(voxelsCountPerPatch * 6 * 4 * 1);
         const indices: number[] = new Array(voxelsCountPerPatch * 6 * 6);
 
         let iVertice = 0;
-        let iNormal = 0;
         let iIndex = 0;
         for (let iX = 0; iX < patchSize.x; iX++) {
             for (let iZ = 0; iZ < patchSize.z; iZ++) {
@@ -109,14 +128,12 @@ class Patch {
                         continue;
                     }
 
-                    const firstVertexIndex = iVertice / 3;
-
+                    const firstVertexIndex = iVertice;
                     for (const faceVertex of face.vertices) {
-                        vertices[iVertice++] = faceVertex.x + iX;
-                        vertices[iVertice++] = faceVertex.y + iY;
-                        vertices[iVertice++] = faceVertex.z + iZ;
-
-                        normals[iNormal++] = face.normalCode;
+                        encodedVerticesAndNormals[iVertice++] = encodePositionAndNormalCode(
+                            faceVertex.x + iX, faceVertex.y + iY, faceVertex.z + iZ,
+                            face.normalCode
+                        );
                     }
 
                     for (const faceIndex of face.indices) {
@@ -127,19 +144,18 @@ class Patch {
         }
 
         const geometry = new THREE.BufferGeometry();
-        const verticesBuffer = new THREE.Float32BufferAttribute(vertices.subarray(0, iVertice), 3, false);
-        const normalsBuffer = new THREE.Uint32BufferAttribute(normals.subarray(0, iNormal), 1, false);
-        geometry.setAttribute("position", verticesBuffer);
-        geometry.setAttribute("aNormal", normalsBuffer);
+        const encodedPositionAndNormalCodeBuffer = new THREE.Uint32BufferAttribute(encodedVerticesAndNormals.subarray(0, iVertice), 1, false);
+        geometry.setAttribute("aEncodedVertexData", encodedPositionAndNormalCodeBuffer);
         geometry.setIndex(indices.slice(0, iIndex));
 
-        const totalBytesSize = verticesBuffer.array.byteLength + normalsBuffer.array.byteLength + iIndex * Uint32Array.BYTES_PER_ELEMENT;
-        console.log(`Patch bytes size: ${totalBytesSize / 1024 / 1024} MB`);
+        // const totalBytesSize = encodedPositionAndNormalCodeBuffer.array.byteLength + iIndex * Uint32Array.BYTES_PER_ELEMENT;
+        // console.log(`Patch bytes size: ${totalBytesSize / 1024 / 1024} MB`);
 
         const mesh = new THREE.Mesh(geometry, Patch.material);
         mesh.translateX(patchStart.x);
         mesh.translateY(patchStart.y);
         mesh.translateZ(patchStart.z);
+        mesh.frustumCulled = false;
         return mesh;
     }
 }

@@ -1,6 +1,6 @@
 import { getUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
-import { Patch } from "./patch-compact-normals";
+import { Patch } from "./patch-compact";
 import { VoxelMap } from "./voxel-map";
 
 class Terrain {
@@ -9,11 +9,11 @@ class Terrain {
     public constructor() {
         this.group = new THREE.Group();
 
-        const mapWidth = getUrlNumber("mapwidth", 512);
-        const mapHeight = getUrlNumber("mapheight", 512);
+        const mapWidth = getUrlNumber("mapwidth", 1000);
+        const mapHeight = getUrlNumber("mapheight", 1000);
         const map = new VoxelMap(mapWidth, mapHeight, 10);
 
-        const patchSize = getUrlNumber("patchsize", 512);
+        const patchSize = Math.min(255, getUrlNumber("patchsize", 256));
         for (let iPatchX = 0; iPatchX < map.size.x; iPatchX += patchSize) {
             for (let iPatchZ = 0; iPatchZ < map.size.z; iPatchZ += patchSize) {
                 const patchStart = new THREE.Vector3(iPatchX, 0, iPatchZ);
@@ -34,6 +34,7 @@ class Terrain {
         this.group.translateZ(-0.5 * map.size.z);
         this.group.translateY(-10);
         this.group.applyMatrix4(new THREE.Matrix4().makeScale(0.1, 0.1, 0.1));
+        // this.group.applyMatrix4(new THREE.Matrix4().makeScale(10, 10, 10));
     }
 
     // @ts-ignore

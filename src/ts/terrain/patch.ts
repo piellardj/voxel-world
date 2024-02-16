@@ -80,8 +80,8 @@ class Patch {
         let iVertice = 0;
         let iNormal = 0;
         let iIndex = 0;
-        for (let iX = 0; iX < map.size.x; iX++) {
-            for (let iZ = 0; iZ < map.size.z; iZ++) {
+        for (let iX = 0; iX < patchSize.x; iX++) {
+            for (let iZ = 0; iZ < patchSize.z; iZ++) {
                 const voxelX = patchStart.x + iX;
                 const voxelZ = patchStart.z + iZ;
                 const voxelY = map.getY(voxelX, voxelZ);
@@ -119,7 +119,7 @@ class Patch {
         geometry.setAttribute("normal", normalsBuffer);
         geometry.setIndex(indices.slice(0, iIndex));
 
-        const totalBytesSize = verticesBuffer.array.byteLength + normalsBuffer.array.byteLength;
+        const totalBytesSize = verticesBuffer.array.byteLength + normalsBuffer.array.byteLength + iIndex * Uint32Array.BYTES_PER_ELEMENT;
         console.log(`Patch bytes size: ${totalBytesSize / 1024 / 1024} MB`);
 
         const mesh = new THREE.Mesh(geometry, Patch.material);

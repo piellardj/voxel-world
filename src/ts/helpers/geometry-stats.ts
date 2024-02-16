@@ -10,13 +10,14 @@ function computeGeometryStats(object: THREE.Object3D): void {
             const mesh = object as THREE.Mesh;
             const geometry = (mesh as THREE.Mesh).geometry;
 
-            const meshVerticesCount = geometry.attributes.position.count;
+            const posAttribute = geometry.attributes.position || geometry.attributes.aEncodedVertexData;
+            const meshVerticesCount = posAttribute.count;
 
             let meshTrianglesCount: number;
             if (geometry.index !== null) {
                 meshTrianglesCount = geometry.index.count / 3;
             } else {
-                meshTrianglesCount = geometry.attributes.position.count / 3;
+                meshTrianglesCount = posAttribute.count / 3;
             }
 
             let instancesCount = 1;
