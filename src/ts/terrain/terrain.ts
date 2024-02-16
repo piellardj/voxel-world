@@ -1,11 +1,7 @@
+import { getUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
-import { createNoise2D } from 'simplex-noise';
-
-type Map = {
-    readonly size: THREE.Vector3;
-    readonly getY: (x: number, z: number) => number;
-    readonly getVoxel: (x: number, y: number, z: number) => boolean;
-};
+import { Patch } from "./patch";
+import { VoxelMap } from "./voxel-map";
 
 class Terrain {
     public readonly group: THREE.Group;
@@ -13,8 +9,26 @@ class Terrain {
     public constructor() {
         this.group = new THREE.Group();
 
-        const map = Terrain.buildMap();
-        this.fillGroup5(map);
+        const mapWidth = getUrlNumber("mapwidth", 512);
+        const mapHeight = getUrlNumber("mapheight", 512);
+        const map = new VoxelMap(mapWidth, mapHeight, 10);
+
+        const patchSize = getUrlNumber("patchsize", 256);
+        for (let iPatchX = 0; iPatchX < map.size.x; iPatchX += patchSize) {
+            for (let iPatchZ = 0; iPatchZ < map.size.z; iPatchZ += patchSize) {
+                const patchStart = new THREE.Vector3(iPatchX, 0, iPatchZ);
+                const patchEnd = new THREE.Vector3(
+                    Math.min(map.size.x, iPatchX + patchSize),
+                    0,
+                    Math.min(map.size.z, iPatchZ + patchSize),
+                );
+
+                const patchMesh = Patch.buildPatchMesh(map, patchStart, patchEnd);
+                this.group.add(patchMesh);
+            }
+        }
+
+        console.log(`${(mapWidth * mapHeight).toLocaleString()} voxels in total (${mapWidth}x${mapHeight})`);
 
         this.group.translateX(-0.5 * map.size.x);
         this.group.translateZ(-0.5 * map.size.z);
@@ -125,154 +139,10 @@ class Terrain {
 
         console.log(`${(patchesCount * voxelsCountPerPatch).toLocaleString()} voxels in total.`);
     }
-
-    // @ts-ignore
-    private fillGroup5(map: Map): void {
-        const voxelsCountPerPatch = map.size.x * map.size.z;
-
-        const vXpYpZp = new THREE.Vector3(+.5, +.5, +.5);
-        const vXmYpZp = new THREE.Vector3(-.5, +.5, +.5);
-        const vXpYmZp = new THREE.Vector3(+.5, -.5, +.5);
-        const vXmYmZp = new THREE.Vector3(-.5, -.5, +.5);
-        const vXpYpZm = new THREE.Vector3(+.5, +.5, -.5);
-        const vXmYpZm = new THREE.Vector3(-.5, +.5, -.5);
-        const vXpYmZm = new THREE.Vector3(+.5, -.5, -.5);
-        const vXmYmZm = new THREE.Vector3(-.5, -.5, -.5);
-
-        type Face = {
-            vertices: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
-            normal: THREE.Vector3;
-            indices: [number, number, number, number, number, number];
-        };
-
-        const faces: Record<"up" | "down" | "left" | "right" | "front" | "back", Face> = {
-            up: {
-                vertices: [vXmYpZm, vXmYpZp, vXpYpZm, vXpYpZp],
-                normal: new THREE.Vector3(0, 1, 0),
-                indices: [0, 1, 2, 1, 3, 2],
-            },
-            down: {
-                vertices: [vXmYmZm, vXmYmZp, vXpYmZm, vXpYmZp],
-                normal: new THREE.Vector3(0, -1, 0),
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            left: {
-                vertices: [vXmYmZp, vXmYpZp, vXmYmZm, vXmYpZm],
-                normal: new THREE.Vector3(-1, 0, 0),
-                indices: [0, 1, 2, 1, 3, 2],
-            },
-            right: {
-                vertices: [vXpYmZp, vXpYpZp, vXpYmZm, vXpYpZm],
-                normal: new THREE.Vector3(1, 0, 0),
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            front: {
-                vertices: [vXmYmZm, vXmYpZm, vXpYmZm, vXpYpZm],
-                normal: new THREE.Vector3(0, 0, -1),
-                indices: [0, 1, 2, 1, 3, 2],
-            },
-            back: {
-                vertices: [vXmYmZp, vXmYpZp, vXpYmZp, vXpYpZp],
-                normal: new THREE.Vector3(0, 0, 1),
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-        };
-
-        const vertices = new Float32Array(voxelsCountPerPatch * 6 * 4 * 3);
-        const normals = new Float32Array(voxelsCountPerPatch * 6 * 4 * 3);
-        const indices: number[] = new Array(voxelsCountPerPatch * 6 * 6);
-
-        let iVertice = 0;
-        let iNormal = 0;
-        let iIndex = 0;
-        for (let iX = 0; iX < map.size.x; iX++) {
-            for (let iZ = 0; iZ < map.size.z; iZ++) {
-                const iY = map.getY(iX, iZ);
-                for (const face of Object.values(faces)) {
-                    if (map.getVoxel(iX + face.normal.x, iY + face.normal.y, iZ + face.normal.z)) {
-                        // this face will be hidden -> skip it
-                        continue;
-                    }
-
-                    const firstVertexIndex = iVertice / 3;
-
-                    for (const faceVertex of face.vertices) {
-                        vertices[iVertice++] = faceVertex.x + iX;
-                        vertices[iVertice++] = faceVertex.y + iY;
-                        vertices[iVertice++] = faceVertex.z + iZ;
-
-                        normals[iNormal++] = face.normal.x;
-                        normals[iNormal++] = face.normal.y;
-                        normals[iNormal++] = face.normal.z;
-                    }
-
-                    for (const faceIndex of face.indices) {
-                        indices[iIndex++] = faceIndex + firstVertexIndex;
-                    }
-                }
-            }
-        }
-
-        const material = new THREE.MeshNormalMaterial();
-
-        let patchesCount = 0;
-        for (let iX = 0; iX < 3; iX++) {
-            for (let iZ = 0; iZ < 2; iZ++) {
-                const geometry = new THREE.BufferGeometry();
-                const verticesBuffer = new THREE.Float32BufferAttribute(vertices.subarray(0, iVertice), 3, false);
-                const normalsBuffer = new THREE.Float32BufferAttribute(normals.subarray(0, iNormal), 3, false);
-                geometry.setAttribute("position", verticesBuffer);
-                geometry.setAttribute("normal", normalsBuffer);
-                geometry.setIndex(indices.slice(0, iIndex));
-                const mesh = new THREE.Mesh(geometry, material);
-                mesh.translateX(map.size.x * iX);
-                mesh.translateZ(map.size.z * iZ);
-                this.group.add(mesh);
-                patchesCount++;
-            }
-        }
-
-        console.log(`${(patchesCount * voxelsCountPerPatch).toLocaleString()} voxels in total.`);
-    }
-
-    private static buildMap(): Map {
-        const size = new THREE.Vector3(1000, 10, 1000);
-
-        const buildId = (x: number, z: number) => x * size.z + z;
-        const noise2D = createNoise2D();
-
-        const voxels: number[] = [];
-        for (let iX = 0; iX < size.x; iX++) {
-            for (let iZ = 0; iZ < size.z; iZ++) {
-                const yNoise = 0.5 + 0.5 * noise2D(iX / 50, iZ / 50);
-                const iY = Math.floor(yNoise * size.y);
-                const id = buildId(iX, iZ);
-                voxels[id] = iY;
-            }
-        }
-
-        const getY = (x: number, z: number) => {
-            if (x > 0 && x < size.x && z >= 0 && z < size.z) {
-                const index = buildId(x, z);
-                return voxels[index];
-            }
-            return -10000;
-        };
-
-        const getVoxel = (x: number, y: number, z: number) => {
-            const realY = getY(x, z);
-            return realY === y;
-        };
-
-        return {
-            size,
-            getY,
-            getVoxel,
-        };
-    }
 }
 
 export {
     Terrain
 };
+
 
