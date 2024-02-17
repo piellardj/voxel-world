@@ -1,14 +1,55 @@
 import { THREE } from "../three-usage";
 import { VoxelMap } from "./voxel-map";
 
-const positionBytesShift = 3; // enough to store the 6 normal values
+type EncodedUintPart = {
+    encode(value: number): number;
+    glslDecode(varname: string): string;
+};
+
+class EncodedUintFactory {
+    private nextAvailableBit: number = 0;
+
+    public encodePart(nbValues: number): EncodedUintPart {
+        const shift = this.nextAvailableBit;
+        const bitsCount = this.computeBitsNeeeded(nbValues);
+        this.nextAvailableBit += bitsCount;
+        if (this.nextAvailableBit > 32) {
+            throw new Error("Does not fit");
+        }
+        const maxValue = (1 << bitsCount) - 1;
+
+        return {
+            encode: (value: number) => {
+                if (value < 0 || value > maxValue) {
+                    throw new Error("Out of range");
+                }
+                return value << shift;
+            },
+            glslDecode: (varname: string) => {
+                return `((${varname} >> ${shift}u) & ${maxValue}u)`;
+            },
+        };
+    }
+
+    private computeBitsNeeeded(nbValues: number): number {
+        for (let i = 1; i < 32; i++) {
+            if (1 << i >= nbValues) {
+                return i;
+            }
+        }
+        throw new Error(`32 bits is not enough to store ${nbValues} values`);
+    }
+}
+
+const encodingFactory = new EncodedUintFactory();
+const encodedPosX = encodingFactory.encodePart(256);
+const encodedPosY = encodingFactory.encodePart(64);
+const encodedPosZ = encodingFactory.encodePart(256);
+const encodedNormal = encodingFactory.encodePart(6);
+
 const bytesPerPositionComponent = 8;
 function encodePositionAndNormalCode(x: number, y: number, z: number, normalCode: number): number {
-    if (x > Patch.maxPatchSize || y > Patch.maxPatchSize || z > Patch.maxPatchSize) {
-        throw new Error();
-    }
-    const encodedPosition = x + (y << bytesPerPositionComponent) + (z << (2 * bytesPerPositionComponent));
-    return normalCode + (encodedPosition << positionBytesShift);
+    return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z) + encodedNormal.encode(normalCode);
 }
 
 const normalVectors = [
@@ -31,9 +72,9 @@ class Patch {
         
         void main(void) {
             vec3 position = vec3(uvec3(
-                (aEncodedVertexData >> ${positionBytesShift}u) & ${(1 << bytesPerPositionComponent) - 1}u,
-                (aEncodedVertexData >> ${bytesPerPositionComponent + positionBytesShift}u) & ${(1 << bytesPerPositionComponent) - 1}u,
-                (aEncodedVertexData >> ${2 * bytesPerPositionComponent + positionBytesShift}u) & ${(1 << bytesPerPositionComponent) - 1}u
+                ${encodedPosX.glslDecode("aEncodedVertexData")},
+                ${encodedPosY.glslDecode("aEncodedVertexData")},
+                ${encodedPosZ.glslDecode("aEncodedVertexData")}
             ));
 
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -41,7 +82,7 @@ class Patch {
             vec3 normals[6] = vec3[](
                 ${normalVectors.map(vec3 => `vec3(${vec3.x},${vec3.y},${vec3.z})`).join(", ")}
             );
-            uint normalCode = aEncodedVertexData & ${(1 << positionBytesShift) - 1}u;
+            uint normalCode = ${encodedNormal.glslDecode("aEncodedVertexData")};
             vWorldNormal = normals[normalCode];
         }`,
         fragmentShader: `precision mediump float;
