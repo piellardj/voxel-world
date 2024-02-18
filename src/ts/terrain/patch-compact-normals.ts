@@ -108,7 +108,7 @@ class Patch {
 
                 for (const face of Object.values(faces)) {
                     const faceNormal = normalVectors[face.normalCode]!;
-                    if (map.getVoxel2(voxelX + faceNormal.x, voxelY + faceNormal.y, voxelZ + faceNormal.z)) {
+                    if (map.voxelExists(voxelX + faceNormal.x, voxelY + faceNormal.y, voxelZ + faceNormal.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }

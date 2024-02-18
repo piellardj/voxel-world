@@ -1,4 +1,5 @@
 import { THREE } from "../three-usage";
+import * as Cube from "./cube";
 import { EVoxelType, VoxelMap } from "./voxel-map";
 
 type EncodedUintPart = {
@@ -65,15 +66,6 @@ function encodeData(x: number, y: number, z: number, normalCode: number, uvCode:
         + encodedMaterial.encode(materialCode);
 }
 
-const normalVectors = [
-    new THREE.Vector3(0, +1, 0),
-    new THREE.Vector3(0, -1, 0),
-    new THREE.Vector3(-1, 0, 0),
-    new THREE.Vector3(+1, 0, 0),
-    new THREE.Vector3(0, 0, -1),
-    new THREE.Vector3(0, 0, +1),
-];
-
 class Patch {
     public static readonly maxPatchSize: number = encodedPosX.maxValue;
     public static readonly dataAttributeName: string = "aEncodedData";
@@ -98,7 +90,7 @@ class Patch {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 
             vec3 normals[6] = vec3[](
-                ${normalVectors.map(vec3 => `vec3(${vec3.x},${vec3.y},${vec3.z})`).join(", ")}
+                ${Cube.normals.map(normal => `vec3(${normal.normal.x},${normal.normal.y},${normal.normal.z})`).join(", ")}
             );
             uint normalCode = ${encodedNormal.glslDecode(Patch.dataAttributeName)};
             vWorldNormal = normals[normalCode];
@@ -147,62 +139,6 @@ class Patch {
         }
         const voxelsCountPerPatch = patchSize.x * patchSize.z;
 
-        const vXpYpZp = new THREE.Vector3(1, 1, 1);
-        const vXmYpZp = new THREE.Vector3(0, 1, 1);
-        const vXpYmZp = new THREE.Vector3(1, 0, 1);
-        const vXmYmZp = new THREE.Vector3(0, 0, 1);
-        const vXpYpZm = new THREE.Vector3(1, 1, 0);
-        const vXmYpZm = new THREE.Vector3(0, 1, 0);
-        const vXpYmZm = new THREE.Vector3(1, 0, 0);
-        const vXmYmZm = new THREE.Vector3(0, 0, 0);
-
-        type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
-        type Face = {
-            type: FaceType;
-            vertices: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
-            normalCode: number;
-            indices: [number, number, number, number, number, number];
-        };
-
-        const faces: Record<FaceType, Face> = {
-            up: {
-                type: "up",
-                vertices: [vXpYpZm, vXpYpZp, vXmYpZm, vXmYpZp],
-                normalCode: 0,
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            down: {
-                type: "down",
-                vertices: [vXmYmZm, vXmYmZp, vXpYmZm, vXpYmZp],
-                normalCode: 1,
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            left: {
-                type: "left",
-                vertices: [vXmYmZm, vXmYpZm, vXmYmZp, vXmYpZp],
-                normalCode: 2,
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            right: {
-                type: "right",
-                vertices: [vXpYmZp, vXpYpZp, vXpYmZm, vXpYpZm],
-                normalCode: 3,
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            front: {
-                type: "front",
-                vertices: [vXpYmZm, vXpYpZm, vXmYmZm, vXmYpZm],
-                normalCode: 4,
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            back: {
-                type: "back",
-                vertices: [vXmYmZp, vXmYpZp, vXpYmZp, vXpYpZp],
-                normalCode: 5,
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-        };
-
         const encodedVerticesAndNormals = new Uint32Array(voxelsCountPerPatch * 6 * 4 * 1);
         const indices: number[] = new Array(voxelsCountPerPatch * 6 * 6);
 
@@ -219,9 +155,9 @@ class Patch {
                 const voxelY = voxel.y;
                 const iY = voxelY - patchStart.y;
 
-                for (const face of Object.values(faces)) {
-                    const faceNormal = normalVectors[face.normalCode]!;
-                    if (map.getVoxel2(voxelX + faceNormal.x, voxelY + faceNormal.y, voxelZ + faceNormal.z)) {
+                for (const face of Object.values(Cube.faces)) {
+                    const faceNormal = face.normal;
+                    if (map.voxelExists(voxelX + faceNormal.normal.x, voxelY + faceNormal.normal.y, voxelZ + faceNormal.normal.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }
@@ -245,7 +181,7 @@ class Patch {
                     face.vertices.forEach((faceVertex: THREE.Vector3, vertexIndex: number) => {
                         encodedVerticesAndNormals[iVertice++] = encodeData(
                             faceVertex.x + iX, faceVertex.y + iY, faceVertex.z + iZ,
-                            face.normalCode,
+                            face.normal.id,
                             vertexIndex,
                             faceMaterial,
                             0,

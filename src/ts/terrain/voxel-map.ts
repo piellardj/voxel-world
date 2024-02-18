@@ -43,12 +43,9 @@ class VoxelMap {
         return null;
     };
 
-    public getVoxel2(x: number, y: number, z: number): Voxel | null {
+    public voxelExists(x: number, y: number, z: number): boolean {
         const voxel = this.getVoxel(x, z);
-        if (voxel && voxel.y === y) {
-            return voxel;
-        }
-        return null;
+        return voxel?.y === y;
     };
 
     private buildId(x: number, z: number): number {

@@ -92,7 +92,7 @@ class Patch {
                 const iY = voxelY - patchStart.y;
 
                 for (const face of Object.values(faces)) {
-                    if (map.getVoxel2(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
+                    if (map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }
