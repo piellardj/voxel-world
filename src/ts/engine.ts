@@ -59,6 +59,7 @@ class Engine {
         this.scene = new THREE.Scene();
         this.terrain = new Terrain();
         this.scene.add(this.terrain.group);
+        this.scene.add(new THREE.AxesHelper(20));
         computeGeometryStats(this.scene);
     }
 

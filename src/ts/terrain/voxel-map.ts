@@ -1,38 +1,54 @@
 import { createNoise2D } from 'simplex-noise';
 import { THREE } from "../three-usage";
 
+enum EVoxelType {
+    DIRT = 0,
+    ROCK = 1,
+}
+
+type Voxel = {
+    readonly y: number;
+    readonly material: EVoxelType;
+};
+
 class VoxelMap {
     public readonly size: THREE.Vector3;
-    private readonly voxels: ReadonlyArray<number>;
+    private readonly voxels: ReadonlyArray<Voxel>;
 
     public constructor(width: number, height: number, altitude: number) {
         this.size = new THREE.Vector3(width, altitude, height);
 
         const noise2D = createNoise2D();
 
-        const voxels: number[] = [];
+        const voxels: Voxel[] = [];
         for (let iX = 0; iX < this.size.x; iX++) {
             for (let iZ = 0; iZ < this.size.z; iZ++) {
                 const yNoise = 0.5 + 0.5 * noise2D(iX / 50, iZ / 50);
                 const iY = Math.floor(yNoise * this.size.y);
                 const id = this.buildId(iX, iZ);
-                voxels[id] = iY;
+                voxels[id] = {
+                    y: iY,
+                    material: (iY > 0.25 * altitude) ? EVoxelType.DIRT : EVoxelType.ROCK,
+                };
             }
         }
         this.voxels = voxels;
     }
 
-    public getY(x: number, z: number): number{
+    public getVoxel(x: number, z: number): Voxel | null {
         if (x >= 0 && x < this.size.x && z >= 0 && z < this.size.z) {
             const index = this.buildId(x, z);
             return this.voxels[index];
         }
-        return -10000;
+        return null;
     };
 
-    public getVoxel (x: number, y: number, z: number): boolean {
-        const realY = this.getY(x, z);
-        return realY === y;
+    public getVoxel2(x: number, y: number, z: number): Voxel | null {
+        const voxel = this.getVoxel(x, z);
+        if (voxel && voxel.y === y) {
+            return voxel;
+        }
+        return null;
     };
 
     private buildId(x: number, z: number): number {
@@ -41,6 +57,6 @@ class VoxelMap {
 }
 
 export {
-    VoxelMap,
+    EVoxelType, Voxel, VoxelMap
 };
 

@@ -9,8 +9,8 @@ class Terrain {
     public constructor() {
         this.group = new THREE.Group();
 
-        const mapWidth = getUrlNumber("mapwidth", 1000);
-        const mapHeight = getUrlNumber("mapheight", 1000);
+        const mapWidth = getUrlNumber("mapwidth", 256);
+        const mapHeight = getUrlNumber("mapheight", 256);
         const map = new VoxelMap(mapWidth, mapHeight, 10);
 
         const patchSize = Math.min(255, getUrlNumber("patchsize", 256));

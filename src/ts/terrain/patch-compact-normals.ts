@@ -99,12 +99,16 @@ class Patch {
             for (let iZ = 0; iZ < patchSize.z; iZ++) {
                 const voxelX = patchStart.x + iX;
                 const voxelZ = patchStart.z + iZ;
-                const voxelY = map.getY(voxelX, voxelZ);
+                const voxel = map.getVoxel(voxelX, voxelZ);
+                if (!voxel) {
+                    continue;
+                }
+                const voxelY = voxel.y;
                 const iY = voxelY - patchStart.y;
 
                 for (const face of Object.values(faces)) {
                     const faceNormal = normalVectors[face.normalCode]!;
-                    if (map.getVoxel(voxelX + faceNormal.x, voxelY + faceNormal.y, voxelZ + faceNormal.z)) {
+                    if (map.getVoxel2(voxelX + faceNormal.x, voxelY + faceNormal.y, voxelZ + faceNormal.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }
