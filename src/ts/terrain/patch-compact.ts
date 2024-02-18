@@ -1,48 +1,7 @@
 import { THREE } from "../three-usage";
 import * as Cube from "./cube";
+import { PackedUintFactory } from "./uint-packing";
 import { EVoxelType, VoxelMap } from "./voxel-map";
-
-type EncodedUintPart = {
-    readonly maxValue: number;
-    encode(value: number): number;
-    glslDecode(varname: string): string;
-};
-
-class EncodedUintFactory {
-    private nextAvailableBit: number = 0;
-
-    public encodePart(nbValues: number): EncodedUintPart {
-        const shift = this.nextAvailableBit;
-        const bitsCount = this.computeBitsNeeeded(nbValues);
-        this.nextAvailableBit += bitsCount;
-        if (this.nextAvailableBit > 32) {
-            throw new Error("Does not fit");
-        }
-        const maxValue = (1 << bitsCount) - 1;
-
-        return {
-            maxValue,
-            encode: (value: number) => {
-                if (value < 0 || value > maxValue) {
-                    throw new Error("Out of range");
-                }
-                return value << shift;
-            },
-            glslDecode: (varname: string) => {
-                return `((${varname} >> ${shift}u) & ${maxValue}u)`;
-            },
-        };
-    }
-
-    private computeBitsNeeeded(nbValues: number): number {
-        for (let i = 1; i < 32; i++) {
-            if (1 << i >= nbValues) {
-                return i;
-            }
-        }
-        throw new Error(`32 bits is not enough to store ${nbValues} values`);
-    }
-}
 
 enum EMaterial {
     ROCK = 2,
@@ -51,14 +10,14 @@ enum EMaterial {
     GRASS_SAND = 0,
 };
 
-const encodingFactory = new EncodedUintFactory();
-const encodedPosX = encodingFactory.encodePart(256);
-const encodedPosY = encodingFactory.encodePart(64);
-const encodedPosZ = encodingFactory.encodePart(256);
-const encodedNormal = encodingFactory.encodePart(6);
-const encodedUv = encodingFactory.encodePart(4);
-const encodedMaterial = encodingFactory.encodePart(Object.keys(EMaterial).length);
-const encodedAo = encodingFactory.encodePart(4);
+const packedUintFactory = new PackedUintFactory();
+const encodedPosX = packedUintFactory.encodePart(256);
+const encodedPosY = packedUintFactory.encodePart(64);
+const encodedPosZ = packedUintFactory.encodePart(256);
+const encodedNormal = packedUintFactory.encodePart(6);
+const encodedUv = packedUintFactory.encodePart(4);
+const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
+const encodedAo = packedUintFactory.encodePart(4);
 
 function encodeData(x: number, y: number, z: number, normalCode: number, uvCode: number, materialCode: number, ao: number): number {
     return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
