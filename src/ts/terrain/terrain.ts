@@ -33,7 +33,7 @@ class Terrain {
         this.group.translateX(-0.5 * map.size.x);
         this.group.translateZ(-0.5 * map.size.z);
         this.group.translateY(-10);
-        this.group.applyMatrix4(new THREE.Matrix4().makeScale(0.1, 0.1, 0.1));
+        this.group.applyMatrix4(new THREE.Matrix4().makeScale(0.5, 0.5, 0.5));
         // this.group.applyMatrix4(new THREE.Matrix4().makeScale(10, 10, 10));
     }
 

@@ -1,4 +1,5 @@
 import { THREE } from "../three-usage";
+import { getAmbientOcclusion } from "./ambient-occlusion";
 import * as Cube from "./cube";
 import { EVoxelType, VoxelMap } from "./voxel-map";
 
@@ -58,12 +59,14 @@ const encodedPosZ = encodingFactory.encodePart(256);
 const encodedNormal = encodingFactory.encodePart(6);
 const encodedUv = encodingFactory.encodePart(4);
 const encodedMaterial = encodingFactory.encodePart(Object.keys(EMaterial).length);
+const encodedAo = encodingFactory.encodePart(4);
 
 function encodeData(x: number, y: number, z: number, normalCode: number, uvCode: number, materialCode: number, ao: number): number {
     return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
         + encodedNormal.encode(normalCode)
         + encodedUv.encode(uvCode)
-        + encodedMaterial.encode(materialCode);
+        + encodedMaterial.encode(materialCode)
+        + encodedAo.encode(ao);
 }
 
 class Patch {
@@ -78,6 +81,7 @@ class Patch {
         attribute uint ${Patch.dataAttributeName};
 
         flat varying vec3 vWorldNormal;
+        varying float vAo;
         varying vec2 vUv;
         flat varying ivec2 vMaterial;
 
@@ -95,6 +99,8 @@ class Patch {
             uint normalCode = ${encodedNormal.glslDecode(Patch.dataAttributeName)};
             vWorldNormal = normals[normalCode];
 
+            vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
+        
             vec2 uvs[4] = vec2[](
                 vec2(0,0),
                 vec2(0,1),
@@ -118,16 +124,18 @@ class Patch {
         uniform sampler2D uTexture;
 
         flat varying vec3 vWorldNormal;
+        varying float vAo;
         varying vec2 vUv;
         flat varying ivec2 vMaterial;
 
         void main(void) {
-            gl_FragColor = vec4(0.5 + 0.5 * vWorldNormal, 1);
-            gl_FragColor = vec4(vUv, 0, 1);
-
-            ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
+             ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
-            gl_FragColor = vec4(color, 1);
+
+            const float maxAo = 0.5;
+            float ao = (1.0 - maxAo) + maxAo * smoothstep(0.0, 0.95, 1.0 - vAo);
+            color *= ao;
+            gl_FragColor = vec4(color, 1);// * 0.0000000000000001 + vec4(vUv, 0, 1);
         }
         `,
     });
@@ -179,12 +187,32 @@ class Patch {
 
                     const firstVertexIndex = iVertice;
                     face.vertices.forEach((faceVertex: THREE.Vector3, vertexIndex: number) => {
+                        const neighbourMmm = new THREE.Vector3(
+                            iX + (faceVertex.x - 1),
+                            iY + (faceVertex.y - 1),
+                            iZ + (faceVertex.z - 1),
+                        );
+
+                        const ao = getAmbientOcclusion(
+                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 0, neighbourMmm.z + 0),
+                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 0, neighbourMmm.z + 1),
+                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 1, neighbourMmm.z + 0),
+                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 1, neighbourMmm.z + 1),
+                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 0, neighbourMmm.z + 0),
+                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 0, neighbourMmm.z + 1),
+                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 1, neighbourMmm.z + 0),
+                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 1, neighbourMmm.z + 1),
+                        );
+
+                        // if (ao > 0) {
+                        //     console.log(ao);
+                        // }
                         encodedVerticesAndNormals[iVertice++] = encodeData(
                             faceVertex.x + iX, faceVertex.y + iY, faceVertex.z + iZ,
                             face.normal.id,
                             vertexIndex,
                             faceMaterial,
-                            0,
+                            ao,
                         );
                     });
 
