@@ -31,9 +31,25 @@ class Patch {
     public static readonly maxPatchSize: number = encodedPosX.maxValue;
     public static readonly dataAttributeName: string = "aEncodedData";
 
+    public static parameters = {
+        ao: {
+            enabled: true,
+            strength: 0.4,
+            spread: 0.85,
+        },
+        textures: {
+            enabled: true,
+        },
+    };
+
+    private static readonly textureMaterials = new THREE.TextureLoader().load("resources/materials.png");
+    private static readonly textureWhite = new THREE.TextureLoader().load("resources/materials_white.png");
+
     private static material: THREE.ShaderMaterial = new THREE.ShaderMaterial({
         uniforms: {
-            uTexture: { value: new THREE.TextureLoader().load("resources/materials.png") },
+            uTexture: { value: null },
+            uAoStrength: { value: 0 },
+            uAoSpread: { value: 0 },
         },
         vertexShader: `
         attribute uint ${Patch.dataAttributeName};
@@ -80,6 +96,8 @@ class Patch {
         fragmentShader: `precision mediump float;
 
         uniform sampler2D uTexture;
+        uniform float uAoStrength;
+        uniform float uAoSpread;
 
         flat varying vec3 vWorldNormal;
         varying float vAo;
@@ -90,14 +108,21 @@ class Patch {
             ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
 
-            const float maxAo = 0.4;
-            float ao = (1.0 - maxAo) + maxAo * (smoothstep(0.0, 0.85, 1.0 - vAo));
-            color *= ao;
+            float light = 1.0;
+            float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
+            light *= ao;
+            color *= light;
 
             gl_FragColor = vec4(color, 1);
         }
         `,
     });
+
+    public static updateUniforms(): void {
+        Patch.material.uniforms.uTexture.value = Patch.parameters.textures.enabled ? Patch.textureMaterials : Patch.textureWhite;
+        Patch.material.uniforms.uAoStrength.value = +Patch.parameters.ao.enabled * Patch.parameters.ao.strength;
+        Patch.material.uniforms.uAoSpread.value = +Patch.parameters.ao.spread;
+    }
 
     public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {
         const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);

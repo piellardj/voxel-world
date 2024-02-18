@@ -6,6 +6,8 @@ import { VoxelMap } from "./voxel-map";
 class Terrain {
     public readonly group: THREE.Group;
 
+    public static readonly parameters = Patch.parameters;
+
     public constructor() {
         this.group = new THREE.Group();
 
@@ -35,6 +37,10 @@ class Terrain {
         this.group.translateY(-10);
         this.group.applyMatrix4(new THREE.Matrix4().makeScale(0.5, 0.5, 0.5));
         // this.group.applyMatrix4(new THREE.Matrix4().makeScale(10, 10, 10));
+    }
+
+    public static updateUniforms(): void {
+        Patch.updateUniforms();
     }
 
     // @ts-ignore

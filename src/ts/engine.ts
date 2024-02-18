@@ -1,9 +1,9 @@
+import { GUI } from "dat.gui";
 import { Debouncer } from "./helpers/debouncer";
-import { OrbitControls, Stats, THREE } from "./three-usage";
-import { Time } from "./helpers/time/time";
-// import { GUI } from "dat.gui";
-import { Terrain } from "./terrain/terrain";
 import { computeGeometryStats } from "./helpers/geometry-stats";
+import { Time } from "./helpers/time/time";
+import { Terrain } from "./terrain/terrain";
+import { OrbitControls, Stats, THREE } from "./three-usage";
 
 
 class Engine {
@@ -14,13 +14,11 @@ class Engine {
     private readonly terrain: Terrain;
 
     private readonly stats: Stats;
-    // private readonly gui: GUI;
+    private readonly gui: GUI;
 
     public constructor() {
         this.stats = new Stats();
         document.body.appendChild(this.stats.dom);
-
-        // this.gui = new GUI();
 
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -61,6 +59,20 @@ class Engine {
         this.scene.add(this.terrain.group);
         this.scene.add(new THREE.AxesHelper(20));
         computeGeometryStats(this.scene);
+
+        this.gui = new GUI();
+        {
+            const folder = this.gui.addFolder("Textures");
+            folder.open();
+            folder.add(Terrain.parameters.textures, "enabled");
+        }
+        {
+            const folder = this.gui.addFolder("Ambient occlusion");
+            folder.open();
+            folder.add(Terrain.parameters.ao, "enabled");
+            folder.add(Terrain.parameters.ao, "strength", 0, 1);
+            folder.add(Terrain.parameters.ao, "spread", 0, 1);
+        }
     }
 
     public start(): void {
@@ -83,6 +95,7 @@ class Engine {
     }
 
     private render(): void {
+        Terrain.updateUniforms();
         this.renderer.render(this.scene, this.camera);
     }
 }
