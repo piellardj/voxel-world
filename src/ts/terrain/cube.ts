@@ -10,6 +10,10 @@ const vertices = {
     pmm: new THREE.Vector3(1, 0, 0),
     mmm: new THREE.Vector3(0, 0, 0),
 };
+type FaceVertex = {
+    readonly vertex: THREE.Vector3;
+    readonly neighbourVoxels: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+};
 
 type FaceNormal = {
     readonly id: number;
@@ -28,7 +32,7 @@ const normals: FaceNormal[] = [
 type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
 type Face = {
     readonly type: FaceType;
-    readonly vertices: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
+    readonly vertices: [FaceVertex, FaceVertex, FaceVertex, FaceVertex];
     readonly normal: FaceNormal;
     readonly indices: [number, number, number, number, number, number];
 };
@@ -36,43 +40,145 @@ type Face = {
 const faces: Record<FaceType, Face> = {
     up: {
         type: "up",
-        vertices: [vertices.ppm, vertices.ppp, vertices.mpm, vertices.mpp],
+        vertices: [
+            {
+                vertex: vertices.ppm,
+                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(0, 1, -1), new THREE.Vector3(1, 1, -1)],
+            },
+            {
+                vertex: vertices.ppp,
+                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(0, 1, 1), new THREE.Vector3(1, 1, 1)],
+            },
+            {
+                vertex: vertices.mpm,
+                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(0, 1, -1), new THREE.Vector3(-1, 1, -1)],
+            },
+            {
+                vertex: vertices.mpp,
+                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(0, 1, 1), new THREE.Vector3(-1, 1, 1)],
+            },
+        ],
         normal: normals[0],
         indices: [0, 2, 1, 1, 2, 3],
     },
     down: {
         type: "down",
-        vertices: [vertices.mmm, vertices.mmp, vertices.pmm, vertices.pmp],
+        vertices: [
+            {
+                vertex: vertices.mmm,
+                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(0, -1, -1), new THREE.Vector3(-1, -1, -1)],
+            },
+            {
+                vertex: vertices.mmp,
+                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(0, -1, 1), new THREE.Vector3(-1, -1, 1)],
+            },
+            {
+                vertex: vertices.pmm,
+                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(0, -1, -1), new THREE.Vector3(1, -1, -1)],
+            },
+            {
+                vertex: vertices.pmp,
+                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(0, -1, 1), new THREE.Vector3(1, -1, 1)],
+            },
+        ],
         normal: normals[1],
         indices: [0, 2, 1, 1, 2, 3],
     },
     left: {
         type: "left",
-        vertices: [vertices.mmm, vertices.mpm, vertices.mmp, vertices.mpp],
+        vertices: [
+            {
+                vertex: vertices.mmm,
+                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(-1, 0, -1), new THREE.Vector3(-1, -1, -1)],
+            },
+            {
+                vertex: vertices.mpm,
+                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(-1, 0, -1), new THREE.Vector3(-1, 1, -1)],
+            },
+            {
+                vertex: vertices.mmp,
+                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(-1, 0, 1), new THREE.Vector3(-1, -1, 1)],
+            },
+            {
+                vertex: vertices.mpp,
+                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(-1, 0, 1), new THREE.Vector3(-1, 1, 1)],
+            },
+        ],
         normal: normals[2],
         indices: [0, 2, 1, 1, 2, 3],
     },
     right: {
         type: "right",
-        vertices: [vertices.pmp, vertices.ppp, vertices.pmm, vertices.ppm],
+        vertices: [
+            {
+                vertex: vertices.pmp,
+                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(1, 0, 1), new THREE.Vector3(1, -1, 1)],
+            },
+            {
+                vertex: vertices.ppp,
+                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(1, 0, 1), new THREE.Vector3(1, 1, 1)],
+            },
+            {
+                vertex: vertices.pmm,
+                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(1, 0, -1), new THREE.Vector3(1, -1, -1)],
+            },
+            {
+                vertex: vertices.ppm,
+                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(1, 0, -1), new THREE.Vector3(1, 1, -1)],
+            },
+        ],
         normal: normals[3],
         indices: [0, 2, 1, 1, 2, 3],
     },
     front: {
         type: "front",
-        vertices: [vertices.mmp, vertices.mpp, vertices.pmp, vertices.ppp],
+        vertices: [
+            {
+                vertex: vertices.mmp,
+                neighbourVoxels: [new THREE.Vector3(-1, 0, 1), new THREE.Vector3(0, -1, 1), new THREE.Vector3(-1, -1, 1)],
+            },
+            {
+                vertex: vertices.mpp,
+                neighbourVoxels: [new THREE.Vector3(-1, 0, 1), new THREE.Vector3(0, 1, 1), new THREE.Vector3(-1, 1, 1)],
+            },
+            {
+                vertex: vertices.pmp,
+                neighbourVoxels: [new THREE.Vector3(1, 0, 1), new THREE.Vector3(0, -1, 1), new THREE.Vector3(1, -1, 1)],
+            },
+            {
+                vertex: vertices.ppp,
+                neighbourVoxels: [new THREE.Vector3(1, 0, 1), new THREE.Vector3(0, 1, 1), new THREE.Vector3(1, 1, 1)],
+            },
+        ],
         normal: normals[4],
         indices: [0, 2, 1, 1, 2, 3],
     },
     back: {
         type: "back",
-        vertices: [vertices.pmm, vertices.ppm, vertices.mmm, vertices.mpm],
+        vertices: [
+            {
+                vertex: vertices.pmm,
+                neighbourVoxels: [new THREE.Vector3(1, 0, -1), new THREE.Vector3(0, -1, -1), new THREE.Vector3(1, -1, -1)],
+            },
+            {
+                vertex: vertices.ppm,
+                neighbourVoxels: [new THREE.Vector3(1, 0, -1), new THREE.Vector3(0, 1, -1), new THREE.Vector3(1, 1, -1)],
+            },
+            {
+                vertex: vertices.mmm,
+                neighbourVoxels: [new THREE.Vector3(-1, 0, -1), new THREE.Vector3(0, -1, -1), new THREE.Vector3(-1, -1, -1)],
+            },
+            {
+                vertex: vertices.mpm,
+                neighbourVoxels: [new THREE.Vector3(-1, 0, -1), new THREE.Vector3(0, 1, -1), new THREE.Vector3(-1, 1, -1)],
+            },
+        ],
         normal: normals[5],
         indices: [0, 2, 1, 1, 2, 3],
     },
 };
 
 export {
-    faces, normals
+    faces, normals, type FaceVertex
 };
 

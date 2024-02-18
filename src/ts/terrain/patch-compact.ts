@@ -1,5 +1,4 @@
 import { THREE } from "../three-usage";
-import { getAmbientOcclusion } from "./ambient-occlusion";
 import * as Cube from "./cube";
 import { EVoxelType, VoxelMap } from "./voxel-map";
 
@@ -129,13 +128,14 @@ class Patch {
         flat varying ivec2 vMaterial;
 
         void main(void) {
-             ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
+            ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
 
-            const float maxAo = 0.5;
-            float ao = (1.0 - maxAo) + maxAo * smoothstep(0.0, 0.95, 1.0 - vAo);
+            const float maxAo = 0.4;
+            float ao = (1.0 - maxAo) + maxAo * (smoothstep(0.0, 0.85, 1.0 - vAo));
             color *= ao;
-            gl_FragColor = vec4(color, 1);// * 0.0000000000000001 + vec4(vUv, 0, 1);
+
+            gl_FragColor = vec4(color, 1);
         }
         `,
     });
@@ -186,29 +186,17 @@ class Patch {
                     }
 
                     const firstVertexIndex = iVertice;
-                    face.vertices.forEach((faceVertex: THREE.Vector3, vertexIndex: number) => {
-                        const neighbourMmm = new THREE.Vector3(
-                            iX + (faceVertex.x - 1),
-                            iY + (faceVertex.y - 1),
-                            iZ + (faceVertex.z - 1),
-                        );
+                    face.vertices.forEach((faceVertex: Cube.FaceVertex, vertexIndex: number) => {
+                        let ao = 0;
+                        const [a, b, c] = faceVertex.neighbourVoxels.map(neighbourVoxel => map.voxelExists(iX + neighbourVoxel.x, iY + neighbourVoxel.y, iZ + neighbourVoxel.z));
+                        if (a && b) {
+                            ao = 3;
+                        } else {
+                            ao = +a + +b + +c;
+                        }
 
-                        const ao = getAmbientOcclusion(
-                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 0, neighbourMmm.z + 0),
-                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 0, neighbourMmm.z + 1),
-                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 1, neighbourMmm.z + 0),
-                            map.voxelExists(neighbourMmm.x + 0, neighbourMmm.y + 1, neighbourMmm.z + 1),
-                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 0, neighbourMmm.z + 0),
-                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 0, neighbourMmm.z + 1),
-                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 1, neighbourMmm.z + 0),
-                            map.voxelExists(neighbourMmm.x + 1, neighbourMmm.y + 1, neighbourMmm.z + 1),
-                        );
-
-                        // if (ao > 0) {
-                        //     console.log(ao);
-                        // }
                         encodedVerticesAndNormals[iVertice++] = encodeData(
-                            faceVertex.x + iX, faceVertex.y + iY, faceVertex.z + iZ,
+                            faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
                             face.normal.id,
                             vertexIndex,
                             faceMaterial,
