@@ -66,7 +66,7 @@ class Patch {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 
             vec3 normals[6] = vec3[](
-                ${Cube.normals.map(normal => `vec3(${normal.normal.x},${normal.normal.y},${normal.normal.z})`).join(", ")}
+                ${Cube.normalsById.map(normal => `vec3(${normal.vector.x},${normal.vector.y},${normal.vector.z})`).join(", ")}
             );
             uint normalCode = ${encodedNormal.glslDecode(Patch.dataAttributeName)};
             vWorldNormal = normals[normalCode];
@@ -145,7 +145,7 @@ class Patch {
 
                 for (const face of Object.values(Cube.faces)) {
                     const faceNormal = face.normal;
-                    if (map.voxelExists(voxelX + faceNormal.normal.x, voxelY + faceNormal.normal.y, voxelZ + faceNormal.normal.z)) {
+                    if (map.voxelExists(voxelX + faceNormal.vector.x, voxelY + faceNormal.vector.y, voxelZ + faceNormal.vector.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }

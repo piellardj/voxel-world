@@ -15,21 +15,23 @@ type FaceVertex = {
     readonly neighbourVoxels: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
 };
 
+type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
+
 type FaceNormal = {
     readonly id: number;
-    readonly normal: THREE.Vector3;
+    readonly vector: THREE.Vector3;
 };
 let iN = 0;
-const normals: FaceNormal[] = [
-    { id: iN++, normal: new THREE.Vector3(0, +1, 0) },
-    { id: iN++, normal: new THREE.Vector3(0, -1, 0) },
-    { id: iN++, normal: new THREE.Vector3(-1, 0, 0) },
-    { id: iN++, normal: new THREE.Vector3(+1, 0, 0) },
-    { id: iN++, normal: new THREE.Vector3(0, 0, +1) },
-    { id: iN++, normal: new THREE.Vector3(0, 0, -1) },
-];
+const normals: Record<FaceType, FaceNormal> = {
+    up: { id: iN++, vector: new THREE.Vector3(0, +1, 0) },
+    down: { id: iN++, vector: new THREE.Vector3(0, -1, 0) },
+    left: { id: iN++, vector: new THREE.Vector3(-1, 0, 0) },
+    right: { id: iN++, vector: new THREE.Vector3(+1, 0, 0) },
+    front: { id: iN++, vector: new THREE.Vector3(0, 0, +1) },
+    back: { id: iN++, vector: new THREE.Vector3(0, 0, -1) },
+};
+const normalsById = Object.values(normals).sort((normal1: FaceNormal, normal2: FaceNormal) => normal1.id - normal2.id);
 
-type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
 type Face = {
     readonly type: FaceType;
     readonly vertices: [FaceVertex, FaceVertex, FaceVertex, FaceVertex];
@@ -59,7 +61,7 @@ const faces: Record<FaceType, Face> = {
                 neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(0, 1, 1), new THREE.Vector3(-1, 1, 1)],
             },
         ],
-        normal: normals[0],
+        normal: normals.up,
     },
     down: {
         type: "down",
@@ -81,7 +83,7 @@ const faces: Record<FaceType, Face> = {
                 neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(0, -1, 1), new THREE.Vector3(1, -1, 1)],
             },
         ],
-        normal: normals[1],
+        normal: normals.down,
     },
     left: {
         type: "left",
@@ -103,7 +105,7 @@ const faces: Record<FaceType, Face> = {
                 neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(-1, 0, 1), new THREE.Vector3(-1, 1, 1)],
             },
         ],
-        normal: normals[2],
+        normal: normals.left,
     },
     right: {
         type: "right",
@@ -125,7 +127,7 @@ const faces: Record<FaceType, Face> = {
                 neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(1, 0, -1), new THREE.Vector3(1, 1, -1)],
             },
         ],
-        normal: normals[3],
+        normal: normals.right,
     },
     front: {
         type: "front",
@@ -147,7 +149,7 @@ const faces: Record<FaceType, Face> = {
                 neighbourVoxels: [new THREE.Vector3(1, 0, 1), new THREE.Vector3(0, 1, 1), new THREE.Vector3(1, 1, 1)],
             },
         ],
-        normal: normals[4],
+        normal: normals.front,
     },
     back: {
         type: "back",
@@ -169,9 +171,9 @@ const faces: Record<FaceType, Face> = {
                 neighbourVoxels: [new THREE.Vector3(-1, 0, -1), new THREE.Vector3(0, 1, -1), new THREE.Vector3(-1, 1, -1)],
             },
         ],
-        normal: normals[5],
+        normal: normals.back,
     },
 };
 
-export { faceIndices, faces, normals, type FaceVertex };
+export { faceIndices, faces, type FaceVertex, normalsById };
 
