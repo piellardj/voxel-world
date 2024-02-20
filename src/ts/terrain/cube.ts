@@ -12,11 +12,10 @@ const vertices = {
 };
 type FaceVertex = {
     readonly vertex: THREE.Vector3;
-    readonly neighbourVoxels: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+    readonly shadowingNeighbourVoxels: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
 };
 
 type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
-
 
 const normals: Record<FaceType, THREE.Vector3> = {
     up: new THREE.Vector3(0, +1, 0),
@@ -37,147 +36,62 @@ type Face = {
 const faceIndices: [number, number, number, number, number, number] = [0, 2, 1, 1, 2, 3];
 
 let iF = 0;
-const faces: Record<FaceType, Face> = {
-    up: {
-        id: iF++,
-        type: "up",
-        vertices: [
-            {
-                vertex: vertices.ppm,
-                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(0, 1, -1), new THREE.Vector3(1, 1, -1)],
-            },
-            {
-                vertex: vertices.ppp,
-                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(0, 1, 1), new THREE.Vector3(1, 1, 1)],
-            },
-            {
-                vertex: vertices.mpm,
-                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(0, 1, -1), new THREE.Vector3(-1, 1, -1)],
-            },
-            {
-                vertex: vertices.mpp,
-                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(0, 1, 1), new THREE.Vector3(-1, 1, 1)],
-            },
-        ],
-        normal: normals.up,
-    },
-    down: {
-        id: iF++,
-        type: "down",
-        vertices: [
-            {
-                vertex: vertices.mmm,
-                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(0, -1, -1), new THREE.Vector3(-1, -1, -1)],
-            },
-            {
-                vertex: vertices.mmp,
-                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(0, -1, 1), new THREE.Vector3(-1, -1, 1)],
-            },
-            {
-                vertex: vertices.pmm,
-                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(0, -1, -1), new THREE.Vector3(1, -1, -1)],
-            },
-            {
-                vertex: vertices.pmp,
-                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(0, -1, 1), new THREE.Vector3(1, -1, 1)],
-            },
-        ],
-        normal: normals.down,
-    },
-    left: {
-        id: iF++,
-        type: "left",
-        vertices: [
-            {
-                vertex: vertices.mmm,
-                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(-1, 0, -1), new THREE.Vector3(-1, -1, -1)],
-            },
-            {
-                vertex: vertices.mpm,
-                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(-1, 0, -1), new THREE.Vector3(-1, 1, -1)],
-            },
-            {
-                vertex: vertices.mmp,
-                neighbourVoxels: [new THREE.Vector3(-1, -1, 0), new THREE.Vector3(-1, 0, 1), new THREE.Vector3(-1, -1, 1)],
-            },
-            {
-                vertex: vertices.mpp,
-                neighbourVoxels: [new THREE.Vector3(-1, 1, 0), new THREE.Vector3(-1, 0, 1), new THREE.Vector3(-1, 1, 1)],
-            },
-        ],
-        normal: normals.left,
-    },
-    right: {
-        id: iF++,
-        type: "right",
-        vertices: [
-            {
-                vertex: vertices.pmp,
-                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(1, 0, 1), new THREE.Vector3(1, -1, 1)],
-            },
-            {
-                vertex: vertices.ppp,
-                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(1, 0, 1), new THREE.Vector3(1, 1, 1)],
-            },
-            {
-                vertex: vertices.pmm,
-                neighbourVoxels: [new THREE.Vector3(1, -1, 0), new THREE.Vector3(1, 0, -1), new THREE.Vector3(1, -1, -1)],
-            },
-            {
-                vertex: vertices.ppm,
-                neighbourVoxels: [new THREE.Vector3(1, 1, 0), new THREE.Vector3(1, 0, -1), new THREE.Vector3(1, 1, -1)],
-            },
-        ],
-        normal: normals.right,
-    },
-    front: {
-        id: iF++,
-        type: "front",
-        vertices: [
-            {
-                vertex: vertices.mmp,
-                neighbourVoxels: [new THREE.Vector3(-1, 0, 1), new THREE.Vector3(0, -1, 1), new THREE.Vector3(-1, -1, 1)],
-            },
-            {
-                vertex: vertices.mpp,
-                neighbourVoxels: [new THREE.Vector3(-1, 0, 1), new THREE.Vector3(0, 1, 1), new THREE.Vector3(-1, 1, 1)],
-            },
-            {
-                vertex: vertices.pmp,
-                neighbourVoxels: [new THREE.Vector3(1, 0, 1), new THREE.Vector3(0, -1, 1), new THREE.Vector3(1, -1, 1)],
-            },
-            {
-                vertex: vertices.ppp,
-                neighbourVoxels: [new THREE.Vector3(1, 0, 1), new THREE.Vector3(0, 1, 1), new THREE.Vector3(1, 1, 1)],
-            },
-        ],
-        normal: normals.front,
-    },
-    back: {
-        id: iF++,
-        type: "back",
-        vertices: [
-            {
-                vertex: vertices.pmm,
-                neighbourVoxels: [new THREE.Vector3(1, 0, -1), new THREE.Vector3(0, -1, -1), new THREE.Vector3(1, -1, -1)],
-            },
-            {
-                vertex: vertices.ppm,
-                neighbourVoxels: [new THREE.Vector3(1, 0, -1), new THREE.Vector3(0, 1, -1), new THREE.Vector3(1, 1, -1)],
-            },
-            {
-                vertex: vertices.mmm,
-                neighbourVoxels: [new THREE.Vector3(-1, 0, -1), new THREE.Vector3(0, -1, -1), new THREE.Vector3(-1, -1, -1)],
-            },
-            {
-                vertex: vertices.mpm,
-                neighbourVoxels: [new THREE.Vector3(-1, 0, -1), new THREE.Vector3(0, 1, -1), new THREE.Vector3(-1, 1, -1)],
-            },
-        ],
-        normal: normals.back,
-    },
-};
 
+function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: THREE.Vector3, v11: THREE.Vector3): Face {
+    const normal = normals[type];
+    const uvUp = new THREE.Vector3().subVectors(v01, v00);
+    const uvRight = new THREE.Vector3().subVectors(v10, v00);
+
+    return {
+        id: iF++,
+        type,
+        vertices: [
+            {
+                vertex: v00,
+                shadowingNeighbourVoxels: [
+                    new THREE.Vector3().subVectors(normal, uvRight),
+                    new THREE.Vector3().subVectors(normal, uvUp),
+                    new THREE.Vector3().subVectors(normal, uvRight).sub(uvUp),
+                ],
+            },
+            {
+                vertex: v01,
+                shadowingNeighbourVoxels: [
+                    new THREE.Vector3().subVectors(normal, uvRight),
+                    new THREE.Vector3().addVectors(normal, uvUp),
+                    new THREE.Vector3().subVectors(normal, uvRight).add(uvUp),
+                ],
+            },
+            {
+                vertex: v10,
+                shadowingNeighbourVoxels: [
+                    new THREE.Vector3().addVectors(normal, uvRight),
+                    new THREE.Vector3().subVectors(normal, uvUp),
+                    new THREE.Vector3().addVectors(normal, uvRight).sub(uvUp),
+                ],
+            },
+            {
+                vertex: v11,
+                shadowingNeighbourVoxels: [
+                    new THREE.Vector3().addVectors(normal, uvRight),
+                    new THREE.Vector3().addVectors(normal, uvUp),
+                    new THREE.Vector3().addVectors(normal, uvRight).add(uvUp),
+                ],
+            },
+        ],
+        normal,
+    };
+}
+
+const faces: Record<FaceType, Face> = {
+    up: buildFace("up", vertices.mpp, vertices.mpm, vertices.ppp, vertices.ppm),
+    down: buildFace("down", vertices.mmm, vertices.mmp, vertices.pmm, vertices.pmp),
+    left: buildFace("left", vertices.mmm, vertices.mpm, vertices.mmp, vertices.mpp),
+    right: buildFace("right", vertices.pmp, vertices.ppp, vertices.pmm, vertices.ppm),
+    front: buildFace("front", vertices.mmp, vertices.mpp, vertices.pmp, vertices.ppp),
+    back: buildFace("back", vertices.pmm, vertices.ppm, vertices.mmm, vertices.mpm),
+};
 const facesById = Object.values(faces).sort((face1: Face, face2: Face) => face1.id - face2.id);
+
 export { faceIndices, faces, type FaceVertex, facesById };
 
