@@ -51,7 +51,7 @@ class Engine {
 
         this.cameraControl = new OrbitControls(this.camera, this.renderer.domElement);
         this.cameraControl.enablePan = true;
-        this.cameraControl.enableDamping = true;
+        this.cameraControl.enableDamping = false;
         this.cameraControl.dampingFactor = 0.05;
 
         this.scene = new THREE.Scene();

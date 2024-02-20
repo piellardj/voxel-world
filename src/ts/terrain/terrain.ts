@@ -34,9 +34,16 @@ class Terrain {
 
         this.group.translateX(-0.5 * map.size.x);
         this.group.translateZ(-0.5 * map.size.z);
-        this.group.translateY(-10);
-        this.group.applyMatrix4(new THREE.Matrix4().makeScale(0.5, 0.5, 0.5));
-        // this.group.applyMatrix4(new THREE.Matrix4().makeScale(10, 10, 10));
+
+        if (map.size.x < 10) {
+            this.group.translateY(-5);
+            const scale = 10;
+            this.group.applyMatrix4(new THREE.Matrix4().makeScale(scale, scale, scale));
+        }  else {     
+            this.group.translateY(-10);
+            const scale = 0.5;
+            this.group.applyMatrix4(new THREE.Matrix4().makeScale(scale, scale, scale));
+        }
     }
 
     public static updateUniforms(): void {
