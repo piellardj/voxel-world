@@ -13,6 +13,10 @@ const vertices = {
 type FaceVertex = {
     readonly vertex: THREE.Vector3;
     readonly shadowingNeighbourVoxels: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+    readonly edgeNeighbourVoxels: {
+        readonly x: [THREE.Vector3, THREE.Vector3];
+        readonly y: [THREE.Vector3, THREE.Vector3];
+    };
 };
 
 type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
@@ -41,6 +45,8 @@ function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: 
     const normal = normals[type];
     const uvUp = new THREE.Vector3().subVectors(v01, v00);
     const uvRight = new THREE.Vector3().subVectors(v10, v00);
+    const uvLeft = uvRight.clone().multiplyScalar(-1);
+    const uvDown = uvUp.clone().multiplyScalar(-1);
 
     return {
         id: iF++,
@@ -53,6 +59,16 @@ function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: 
                     new THREE.Vector3().subVectors(normal, uvUp),
                     new THREE.Vector3().subVectors(normal, uvRight).sub(uvUp),
                 ],
+                edgeNeighbourVoxels: {
+                    x: [
+                        uvLeft,
+                        new THREE.Vector3().addVectors(uvLeft, normal),
+                    ],
+                    y: [
+                        uvDown,
+                        new THREE.Vector3().addVectors(uvDown, normal),
+                    ]
+                },
             },
             {
                 vertex: v01,
@@ -61,6 +77,16 @@ function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: 
                     new THREE.Vector3().addVectors(normal, uvUp),
                     new THREE.Vector3().subVectors(normal, uvRight).add(uvUp),
                 ],
+                edgeNeighbourVoxels: {
+                    x: [
+                        uvLeft,
+                        new THREE.Vector3().addVectors(uvLeft, normal),
+                    ],
+                    y: [
+                        uvUp,
+                        new THREE.Vector3().addVectors(uvUp, normal),
+                    ]
+                },
             },
             {
                 vertex: v10,
@@ -69,6 +95,16 @@ function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: 
                     new THREE.Vector3().subVectors(normal, uvUp),
                     new THREE.Vector3().addVectors(normal, uvRight).sub(uvUp),
                 ],
+                edgeNeighbourVoxels: {
+                    x: [
+                        uvRight,
+                        new THREE.Vector3().addVectors(uvRight, normal),
+                    ],
+                    y: [
+                        uvDown,
+                        new THREE.Vector3().addVectors(uvDown, normal),
+                    ]
+                },
             },
             {
                 vertex: v11,
@@ -77,6 +113,16 @@ function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: 
                     new THREE.Vector3().addVectors(normal, uvUp),
                     new THREE.Vector3().addVectors(normal, uvRight).add(uvUp),
                 ],
+                edgeNeighbourVoxels: {
+                    x: [
+                        uvRight,
+                        new THREE.Vector3().addVectors(uvRight, normal),
+                    ],
+                    y: [
+                        uvUp,
+                        new THREE.Vector3().addVectors(uvUp, normal),
+                    ]
+                },
             },
         ],
         normal,

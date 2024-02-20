@@ -73,6 +73,12 @@ class Engine {
             folder.add(Terrain.parameters.ao, "strength", 0, 1);
             folder.add(Terrain.parameters.ao, "spread", 0, 1);
         }
+        {
+            const folder = this.gui.addFolder("Smooth edges");
+            folder.open();
+            folder.add(Terrain.parameters.smoothEdges, "enabled");
+            folder.add(Terrain.parameters.smoothEdges, "radius", 0, 1);
+        }
     }
 
     public start(): void {

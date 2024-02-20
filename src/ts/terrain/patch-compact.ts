@@ -17,10 +17,12 @@ const encodedPosZ = packedUintFactory.encodePart(256);
 const encodedFaceId = packedUintFactory.encodePart(6);
 const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
 const encodedAo = packedUintFactory.encodePart(4);
+const encodedEdgeRoundness = packedUintFactory.encodePart(4);
 
-function encodeData(x: number, y: number, z: number, faceId: number, materialCode: number, ao: number): number {
+function encodeData(x: number, y: number, z: number, faceId: number, edgeRoundness: [boolean, boolean], materialCode: number, ao: number): number {
     return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
         + encodedFaceId.encode(faceId)
+        + encodedEdgeRoundness.encode(+edgeRoundness[0] + (+edgeRoundness[1] << 1))
         + encodedMaterial.encode(materialCode)
         + encodedAo.encode(ao);
 }
@@ -30,6 +32,10 @@ class Patch {
     public static readonly dataAttributeName: string = "aEncodedData";
 
     public static parameters = {
+        smoothEdges: {
+            enabled: true,
+            radius: 0.1,
+        },
         ao: {
             enabled: true,
             strength: 0.4,
@@ -48,6 +54,7 @@ class Patch {
             uTexture: { value: null },
             uAoStrength: { value: 0 },
             uAoSpread: { value: 0 },
+            uSmoothEdgeRadius: { value: 0 },
         },
         vertexShader: `
         attribute uint ${Patch.dataAttributeName};
@@ -56,6 +63,7 @@ class Patch {
         varying float vAo;
         varying vec2 vUv;
         flat varying ivec2 vMaterial;
+        varying vec2 vEdgeRoundness;
 
         void main(void) {
             vec3 position = vec3(uvec3(
@@ -90,21 +98,40 @@ class Patch {
             );
             uint materialCode = ${encodedMaterial.glslDecode(Patch.dataAttributeName)};
             vMaterial = materials[materialCode];
+
+            const vec2 edgeRoundness[] = vec2[](
+                vec2(0,0),
+                vec2(1,0),
+                vec2(0,1),
+                vec2(1,1)
+            );
+            uint edgeRoundnessId = ${encodedEdgeRoundness.glslDecode(Patch.dataAttributeName)};
+            vEdgeRoundness = edgeRoundness[edgeRoundnessId];
         }`,
         fragmentShader: `precision mediump float;
 
         uniform sampler2D uTexture;
         uniform float uAoStrength;
         uniform float uAoSpread;
+        uniform float uSmoothEdgeRadius;
 
         flat varying vec3 vWorldNormal;
         varying float vAo;
         varying vec2 vUv;
         flat varying ivec2 vMaterial;
+        varying vec2 vEdgeRoundness;
 
         void main(void) {
             ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
+            
+            color = 0.5 + 0.5 * vWorldNormal;
+
+            vec2 edgeRoundness = step(0.1, vEdgeRoundness);
+            vec2 isEdge2 = edgeRoundness * (1.0 - step(uSmoothEdgeRadius, vUv) + step(1.0 - uSmoothEdgeRadius, vUv));
+            float isEdge = min(1.0, isEdge2.x + isEdge2.y);
+
+            color = mix(color, vec3(1,0,0), isEdge);
 
             float light = 1.0;
             float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
@@ -119,7 +146,8 @@ class Patch {
     public static updateUniforms(): void {
         Patch.material.uniforms.uTexture.value = Patch.parameters.textures.enabled ? Patch.textureMaterials : Patch.textureWhite;
         Patch.material.uniforms.uAoStrength.value = +Patch.parameters.ao.enabled * Patch.parameters.ao.strength;
-        Patch.material.uniforms.uAoSpread.value = +Patch.parameters.ao.spread;
+        Patch.material.uniforms.uAoSpread.value = Patch.parameters.ao.spread;
+        Patch.material.uniforms.uSmoothEdgeRadius.value = +Patch.parameters.smoothEdges.enabled * Patch.parameters.smoothEdges.radius;
     }
 
     public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {
@@ -166,16 +194,27 @@ class Patch {
 
                     for (const faceVertex of face.vertices) {
                         let ao = 0;
-                        const [a, b, c] = faceVertex.neighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
+                        const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
                         if (a && b) {
                             ao = 3;
                         } else {
                             ao = +a + +b + +c;
                         }
 
+                        let roundnessX = true;
+                        let roundnessY = true;
+                        if (faceVertex.edgeNeighbourVoxels) {
+                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
+                                roundnessX &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
+                            }
+                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
+                                roundnessY &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
+                            }
+                        }
                         encodedVerticesAndNormals[iVertice++] = encodeData(
                             faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
                             face.id,
+                            [roundnessX, roundnessY],
                             faceMaterial,
                             ao,
                         );
