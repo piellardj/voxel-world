@@ -172,7 +172,7 @@ class Patch {
                     const firstVertexIndex = iVertice;
                     face.vertices.forEach((faceVertex: Cube.FaceVertex, vertexIndex: number) => {
                         let ao = 0;
-                        const [a, b, c] = faceVertex.neighbourVoxels.map(neighbourVoxel => map.voxelExists(iX + neighbourVoxel.x, iY + neighbourVoxel.y, iZ + neighbourVoxel.z));
+                        const [a, b, c] = faceVertex.neighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
                         if (a && b) {
                             ao = 3;
                         } else {
