@@ -73,7 +73,7 @@ class Patch {
 
             vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
         
-            vec2 uvs[4] = vec2[](
+            const vec2 uvs[4] = vec2[](
                 vec2(0,0),
                 vec2(0,1),
                 vec2(1,0),
@@ -82,7 +82,7 @@ class Patch {
             int faceVertexId = gl_VertexID % 4;
             vUv = uvs[faceVertexId];
 
-            ivec2 materials[4] = ivec2[](
+            const ivec2 materials[4] = ivec2[](
                 ivec2(0,0),
                 ivec2(8,0),
                 ivec2(0,8),
