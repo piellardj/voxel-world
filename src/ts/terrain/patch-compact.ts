@@ -59,11 +59,10 @@ class Patch {
         vertexShader: `
         attribute uint ${Patch.dataAttributeName};
 
-        flat varying vec3 vWorldNormal;
-        varying float vAo;
         varying vec2 vUv;
-        flat varying ivec2 vMaterial;
         varying vec2 vEdgeRoundness;
+        varying float vAo;
+        flat varying uint vData;
 
         void main(void) {
             vec3 position = vec3(uvec3(
@@ -72,15 +71,7 @@ class Patch {
                 ${encodedPosZ.glslDecode(Patch.dataAttributeName)}
             ));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-
-            vec3 normals[6] = vec3[](
-                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
-            );
-            uint faceId = ${encodedFaceId.glslDecode(Patch.dataAttributeName)};
-            vWorldNormal = normals[faceId];
-
-            vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
-        
+    
             const vec2 uvs[4] = vec2[](
                 vec2(0,0),
                 vec2(0,1),
@@ -90,15 +81,6 @@ class Patch {
             int faceVertexId = gl_VertexID % 4;
             vUv = uvs[faceVertexId];
 
-            const ivec2 materials[4] = ivec2[](
-                ivec2(0,0),
-                ivec2(8,0),
-                ivec2(0,8),
-                ivec2(8,8)
-            );
-            uint materialCode = ${encodedMaterial.glslDecode(Patch.dataAttributeName)};
-            vMaterial = materials[materialCode];
-
             const vec2 edgeRoundness[] = vec2[](
                 vec2(0,0),
                 vec2(1,0),
@@ -107,6 +89,10 @@ class Patch {
             );
             uint edgeRoundnessId = ${encodedEdgeRoundness.glslDecode(Patch.dataAttributeName)};
             vEdgeRoundness = edgeRoundness[edgeRoundnessId];
+
+            vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
+
+            vData = ${Patch.dataAttributeName};
         }`,
         fragmentShader: `precision mediump float;
 
@@ -115,17 +101,29 @@ class Patch {
         uniform float uAoSpread;
         uniform float uSmoothEdgeRadius;
 
-        flat varying vec3 vWorldNormal;
-        varying float vAo;
         varying vec2 vUv;
-        flat varying ivec2 vMaterial;
         varying vec2 vEdgeRoundness;
+        varying float vAo;
+        flat varying uint vData;
 
         void main(void) {
-            ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + vMaterial;
+            const vec3 normals[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
+            );
+            vec3 worldNormal = normals[${encodedFaceId.glslDecode("vData")}];
+
+            const ivec2 materials[] = ivec2[](
+                ivec2(0,0),
+                ivec2(8,0),
+                ivec2(0,8),
+                ivec2(8,8)
+            );
+            ivec2 material = materials[${encodedMaterial.glslDecode("vData")}];
+
+            ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
             
-            color = 0.5 + 0.5 * vWorldNormal;
+            color = 0.5 + 0.5 * worldNormal;
 
             vec2 edgeRoundness = step(0.1, vEdgeRoundness);
             vec2 isEdge2 = edgeRoundness * (1.0 - step(uSmoothEdgeRadius, vUv) + step(1.0 - uSmoothEdgeRadius, vUv));
