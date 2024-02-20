@@ -15,14 +15,12 @@ const encodedPosX = packedUintFactory.encodePart(256);
 const encodedPosY = packedUintFactory.encodePart(64);
 const encodedPosZ = packedUintFactory.encodePart(256);
 const encodedNormal = packedUintFactory.encodePart(6);
-const encodedUv = packedUintFactory.encodePart(4);
 const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
 const encodedAo = packedUintFactory.encodePart(4);
 
-function encodeData(x: number, y: number, z: number, normalCode: number, uvCode: number, materialCode: number, ao: number): number {
+function encodeData(x: number, y: number, z: number, normalCode: number, materialCode: number, ao: number): number {
     return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
         + encodedNormal.encode(normalCode)
-        + encodedUv.encode(uvCode)
         + encodedMaterial.encode(materialCode)
         + encodedAo.encode(ao);
 }
@@ -81,8 +79,8 @@ class Patch {
                 vec2(1,0),
                 vec2(1,1)
             );
-            uint uvCode = ${encodedUv.glslDecode(Patch.dataAttributeName)};
-            vUv = uvs[uvCode];
+            int faceVertexId = gl_VertexID % 4;
+            vUv = uvs[faceVertexId];
 
             ivec2 materials[4] = ivec2[](
                 ivec2(0,0),
@@ -170,7 +168,7 @@ class Patch {
                     }
 
                     const firstVertexIndex = iVertice;
-                    face.vertices.forEach((faceVertex: Cube.FaceVertex, vertexIndex: number) => {
+                    for (const faceVertex of face.vertices) {
                         let ao = 0;
                         const [a, b, c] = faceVertex.neighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
                         if (a && b) {
@@ -182,11 +180,10 @@ class Patch {
                         encodedVerticesAndNormals[iVertice++] = encodeData(
                             faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
                             face.normal.id,
-                            vertexIndex,
                             faceMaterial,
                             ao,
                         );
-                    });
+                    }
 
                     for (const faceIndex of face.indices) {
                         indices[iIndex++] = faceIndex + firstVertexIndex;
