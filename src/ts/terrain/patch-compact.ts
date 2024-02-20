@@ -14,13 +14,13 @@ const packedUintFactory = new PackedUintFactory();
 const encodedPosX = packedUintFactory.encodePart(256);
 const encodedPosY = packedUintFactory.encodePart(64);
 const encodedPosZ = packedUintFactory.encodePart(256);
-const encodedNormal = packedUintFactory.encodePart(6);
+const encodedFaceId = packedUintFactory.encodePart(6);
 const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
 const encodedAo = packedUintFactory.encodePart(4);
 
-function encodeData(x: number, y: number, z: number, normalCode: number, materialCode: number, ao: number): number {
+function encodeData(x: number, y: number, z: number, faceId: number, materialCode: number, ao: number): number {
     return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
-        + encodedNormal.encode(normalCode)
+        + encodedFaceId.encode(faceId)
         + encodedMaterial.encode(materialCode)
         + encodedAo.encode(ao);
 }
@@ -66,10 +66,10 @@ class Patch {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 
             vec3 normals[6] = vec3[](
-                ${Cube.normalsById.map(normal => `vec3(${normal.vector.x},${normal.vector.y},${normal.vector.z})`).join(", ")}
+                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
             );
-            uint normalCode = ${encodedNormal.glslDecode(Patch.dataAttributeName)};
-            vWorldNormal = normals[normalCode];
+            uint faceId = ${encodedFaceId.glslDecode(Patch.dataAttributeName)};
+            vWorldNormal = normals[faceId];
 
             vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
         
@@ -144,8 +144,7 @@ class Patch {
                 const iY = voxelY - patchStart.y;
 
                 for (const face of Object.values(Cube.faces)) {
-                    const faceNormal = face.normal;
-                    if (map.voxelExists(voxelX + faceNormal.vector.x, voxelY + faceNormal.vector.y, voxelZ + faceNormal.vector.z)) {
+                    if (map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }
@@ -176,7 +175,7 @@ class Patch {
 
                         encodedVerticesAndNormals[iVertice++] = encodeData(
                             faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
-                            face.normal.id,
+                            face.id,
                             faceMaterial,
                             ao,
                         );

@@ -17,31 +17,29 @@ type FaceVertex = {
 
 type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
 
-type FaceNormal = {
-    readonly id: number;
-    readonly vector: THREE.Vector3;
+
+const normals: Record<FaceType, THREE.Vector3> = {
+    up: new THREE.Vector3(0, +1, 0),
+    down: new THREE.Vector3(0, -1, 0),
+    left: new THREE.Vector3(-1, 0, 0),
+    right: new THREE.Vector3(+1, 0, 0),
+    front: new THREE.Vector3(0, 0, +1),
+    back: new THREE.Vector3(0, 0, -1),
 };
-let iN = 0;
-const normals: Record<FaceType, FaceNormal> = {
-    up: { id: iN++, vector: new THREE.Vector3(0, +1, 0) },
-    down: { id: iN++, vector: new THREE.Vector3(0, -1, 0) },
-    left: { id: iN++, vector: new THREE.Vector3(-1, 0, 0) },
-    right: { id: iN++, vector: new THREE.Vector3(+1, 0, 0) },
-    front: { id: iN++, vector: new THREE.Vector3(0, 0, +1) },
-    back: { id: iN++, vector: new THREE.Vector3(0, 0, -1) },
-};
-const normalsById = Object.values(normals).sort((normal1: FaceNormal, normal2: FaceNormal) => normal1.id - normal2.id);
 
 type Face = {
+    readonly id: number;
     readonly type: FaceType;
     readonly vertices: [FaceVertex, FaceVertex, FaceVertex, FaceVertex];
-    readonly normal: FaceNormal;
+    readonly normal: THREE.Vector3;
 };
 
 const faceIndices: [number, number, number, number, number, number] = [0, 2, 1, 1, 2, 3];
 
+let iF = 0;
 const faces: Record<FaceType, Face> = {
     up: {
+        id: iF++,
         type: "up",
         vertices: [
             {
@@ -64,6 +62,7 @@ const faces: Record<FaceType, Face> = {
         normal: normals.up,
     },
     down: {
+        id: iF++,
         type: "down",
         vertices: [
             {
@@ -86,6 +85,7 @@ const faces: Record<FaceType, Face> = {
         normal: normals.down,
     },
     left: {
+        id: iF++,
         type: "left",
         vertices: [
             {
@@ -108,6 +108,7 @@ const faces: Record<FaceType, Face> = {
         normal: normals.left,
     },
     right: {
+        id: iF++,
         type: "right",
         vertices: [
             {
@@ -130,6 +131,7 @@ const faces: Record<FaceType, Face> = {
         normal: normals.right,
     },
     front: {
+        id: iF++,
         type: "front",
         vertices: [
             {
@@ -152,6 +154,7 @@ const faces: Record<FaceType, Face> = {
         normal: normals.front,
     },
     back: {
+        id: iF++,
         type: "back",
         vertices: [
             {
@@ -175,5 +178,6 @@ const faces: Record<FaceType, Face> = {
     },
 };
 
-export { faceIndices, faces, type FaceVertex, normalsById };
+const facesById = Object.values(faces).sort((face1: Face, face2: Face) => face1.id - face2.id);
+export { faceIndices, faces, type FaceVertex, facesById };
 
