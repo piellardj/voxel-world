@@ -34,8 +34,9 @@ type Face = {
     readonly type: FaceType;
     readonly vertices: [FaceVertex, FaceVertex, FaceVertex, FaceVertex];
     readonly normal: FaceNormal;
-    readonly indices: [number, number, number, number, number, number];
 };
+
+const faceIndices: [number, number, number, number, number, number] = [0, 2, 1, 1, 2, 3];
 
 const faces: Record<FaceType, Face> = {
     up: {
@@ -59,7 +60,6 @@ const faces: Record<FaceType, Face> = {
             },
         ],
         normal: normals[0],
-        indices: [0, 2, 1, 1, 2, 3],
     },
     down: {
         type: "down",
@@ -82,7 +82,6 @@ const faces: Record<FaceType, Face> = {
             },
         ],
         normal: normals[1],
-        indices: [0, 2, 1, 1, 2, 3],
     },
     left: {
         type: "left",
@@ -105,7 +104,6 @@ const faces: Record<FaceType, Face> = {
             },
         ],
         normal: normals[2],
-        indices: [0, 2, 1, 1, 2, 3],
     },
     right: {
         type: "right",
@@ -128,7 +126,6 @@ const faces: Record<FaceType, Face> = {
             },
         ],
         normal: normals[3],
-        indices: [0, 2, 1, 1, 2, 3],
     },
     front: {
         type: "front",
@@ -151,7 +148,6 @@ const faces: Record<FaceType, Face> = {
             },
         ],
         normal: normals[4],
-        indices: [0, 2, 1, 1, 2, 3],
     },
     back: {
         type: "back",
@@ -174,11 +170,8 @@ const faces: Record<FaceType, Face> = {
             },
         ],
         normal: normals[5],
-        indices: [0, 2, 1, 1, 2, 3],
     },
 };
 
-export {
-    faces, normals, type FaceVertex
-};
+export { faceIndices, faces, normals, type FaceVertex };
 

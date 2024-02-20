@@ -133,7 +133,6 @@ class Patch {
         const indices: number[] = new Array(voxelsCountPerPatch * 6 * 6);
 
         let iVertice = 0;
-        let iIndex = 0;
         for (let iX = 0; iX < patchSize.x; iX++) {
             for (let iZ = 0; iZ < patchSize.z; iZ++) {
                 const voxelX = patchStart.x + iX;
@@ -167,7 +166,6 @@ class Patch {
                         throw new Error("Unknown material");
                     }
 
-                    const firstVertexIndex = iVertice;
                     for (const faceVertex of face.vertices) {
                         let ao = 0;
                         const [a, b, c] = faceVertex.neighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
@@ -184,18 +182,23 @@ class Patch {
                             ao,
                         );
                     }
-
-                    for (const faceIndex of face.indices) {
-                        indices[iIndex++] = faceIndex + firstVertexIndex;
-                    }
                 }
+            }
+        }
+
+        const facesCount = iVertice / 4;
+        const indices: number[] = new Array(facesCount * 6);
+        for (let iFace = 0; iFace < facesCount; iFace++) {
+            const faceFirstVertexIndex = iFace * 4;
+            for (let iFaceIndex = 0; iFaceIndex < 6; iFaceIndex++) {
+                indices[6 * iFace + iFaceIndex] = faceFirstVertexIndex + Cube.faceIndices[iFaceIndex];
             }
         }
 
         const geometry = new THREE.BufferGeometry();
         const encodedPositionAndNormalCodeBuffer = new THREE.Uint32BufferAttribute(encodedVerticesAndNormals.subarray(0, iVertice), 1, false);
         geometry.setAttribute(Patch.dataAttributeName, encodedPositionAndNormalCodeBuffer);
-        geometry.setIndex(indices.slice(0, iIndex));
+        geometry.setIndex(indices);
 
         // const totalBytesSize = encodedPositionAndNormalCodeBuffer.array.byteLength + iIndex * Uint32Array.BYTES_PER_ELEMENT;
         // console.log(`Patch bytes size: ${totalBytesSize / 1024 / 1024} MB`);
