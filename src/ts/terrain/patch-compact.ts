@@ -130,7 +130,6 @@ class Patch {
         const voxelsCountPerPatch = patchSize.x * patchSize.z;
 
         const encodedVerticesAndNormals = new Uint32Array(voxelsCountPerPatch * 6 * 4 * 1);
-        const indices: number[] = new Array(voxelsCountPerPatch * 6 * 6);
 
         let iVertice = 0;
         for (let iX = 0; iX < patchSize.x; iX++) {
