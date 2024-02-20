@@ -35,6 +35,8 @@ type Face = {
     readonly type: FaceType;
     readonly vertices: [FaceVertex, FaceVertex, FaceVertex, FaceVertex];
     readonly normal: THREE.Vector3;
+    readonly uvUp: THREE.Vector3;
+    readonly uvRight: THREE.Vector3;
 };
 
 const faceIndices: [number, number, number, number, number, number] = [0, 2, 1, 1, 2, 3];
@@ -126,6 +128,8 @@ function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: 
             },
         ],
         normal,
+        uvUp,
+        uvRight,
     };
 }
 

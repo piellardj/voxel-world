@@ -77,7 +77,7 @@ class Engine {
             const folder = this.gui.addFolder("Smooth edges");
             folder.open();
             folder.add(Terrain.parameters.smoothEdges, "enabled");
-            folder.add(Terrain.parameters.smoothEdges, "radius", 0, 1);
+            folder.add(Terrain.parameters.smoothEdges, "radius", 0, Terrain.parameters.smoothEdges.maxRadius);
         }
     }
 

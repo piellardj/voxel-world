@@ -31,10 +31,11 @@ class Patch {
     public static readonly maxPatchSize: number = encodedPosX.maxValue;
     public static readonly dataAttributeName: string = "aEncodedData";
 
-    public static parameters = {
+    public static readonly parameters = {
         smoothEdges: {
             enabled: true,
             radius: 0.1,
+            maxRadius: 0.3, // is constant
         },
         ao: {
             enabled: true,
@@ -106,12 +107,41 @@ class Patch {
         varying float vAo;
         flat varying uint vData;
 
-        void main(void) {
+        vec3 computeWorldNormal() {
+            uint faceId = ${encodedFaceId.glslDecode("vData")};
+
             const vec3 normals[] = vec3[](
                 ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
             );
-            vec3 worldNormal = normals[${encodedFaceId.glslDecode("vData")}];
+            vec3 worldNormal = normals[faceId];
 
+            if (uSmoothEdgeRadius <= 0.0) {
+                return worldNormal;
+            }
+            
+            const vec3 uvUps[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.uvUp.x},${face.uvUp.y},${face.uvUp.z})`).join(", ")}
+            );
+            vec3 uvUp = uvUps[faceId];
+
+            const vec3 uvRights[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.uvRight.x},${face.uvRight.y},${face.uvRight.z})`).join(", ")}
+            );
+            vec3 uvRight = uvRights[faceId];
+
+            vec2 edgeRoundness = step(${Patch.parameters.smoothEdges.maxRadius.toFixed(2)}, vEdgeRoundness);
+            vec2 isEdge2 = edgeRoundness * (1.0 - step(uSmoothEdgeRadius, vUv) + step(1.0 - uSmoothEdgeRadius, vUv));
+            
+            vec2 isEdgeBottomLeft = edgeRoundness * max(vec2(0), uSmoothEdgeRadius - vUv) / uSmoothEdgeRadius;
+            vec2 isEdgeTopRight = edgeRoundness * max(vec2(0), vUv - (1.0 - uSmoothEdgeRadius)) / uSmoothEdgeRadius;
+
+            return normalize(
+                worldNormal
+                + isEdgeTopRight.x * uvRight - isEdgeBottomLeft.x * uvRight
+                + isEdgeTopRight.y * uvUp - isEdgeBottomLeft.y * uvUp);
+        }
+
+        void main(void) {
             const ivec2 materials[] = ivec2[](
                 ivec2(0,0),
                 ivec2(8,0),
@@ -123,14 +153,10 @@ class Patch {
             ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
             
+            vec3 worldNormal = computeWorldNormal();
+
             color = 0.5 + 0.5 * worldNormal;
-
-            vec2 edgeRoundness = step(0.1, vEdgeRoundness);
-            vec2 isEdge2 = edgeRoundness * (1.0 - step(uSmoothEdgeRadius, vUv) + step(1.0 - uSmoothEdgeRadius, vUv));
-            float isEdge = min(1.0, isEdge2.x + isEdge2.y);
-
-            color = mix(color, vec3(1,0,0), isEdge);
-
+            
             float light = 1.0;
             float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
             light *= ao;
