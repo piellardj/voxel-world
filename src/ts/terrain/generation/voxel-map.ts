@@ -69,7 +69,7 @@ class VoxelMap implements IVoxelMap {
     public voxelExists(x: number, y: number, z: number): boolean {
         const voxel = this.getVoxel(x, z);
         return voxel?.y === y;
-    };
+    }
 
     private getVoxel(x: number, z: number): StoredVoxel | null {
         if (x >= 0 && x < this.size.x && z >= 0 && z < this.size.z) {
@@ -77,7 +77,7 @@ class VoxelMap implements IVoxelMap {
             return this.voxels[index];
         }
         return null;
-    };
+    }
 
     private buildId(x: number, z: number): number {
         return x * this.size.z + z;

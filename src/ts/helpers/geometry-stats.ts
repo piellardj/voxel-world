@@ -6,9 +6,9 @@ function computeGeometryStats(object: THREE.Object3D): void {
     let verticesCount = 0;
     let totalBuffersSizeInByte = 0;
 
-    object.traverseVisible(function (object) {
-        if ((object as THREE.Mesh).isMesh) {
-            const mesh = object as THREE.Mesh;
+    object.traverseVisible(subObject => {
+        if ((subObject as THREE.Mesh).isMesh) {
+            const mesh = subObject as THREE.Mesh;
             const geometry = (mesh as THREE.Mesh).geometry;
 
             const meshVerticesCount = geometry.drawRange.count;

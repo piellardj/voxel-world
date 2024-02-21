@@ -9,7 +9,7 @@ enum EMaterial {
     SAND = 3,
     GRASS = 1,
     GRASS_SAND = 0,
-};
+}
 
 const packedUintFactory = new PackedUintFactory();
 const encodedPosX = packedUintFactory.encodePart(256);
@@ -248,7 +248,7 @@ class Patch {
         const voxelsCountPerPatch = map.getMaxVoxelsCount(patchStart, patchEnd);
         if (voxelsCountPerPatch <= 0) {
             return null;
-        };
+        }
 
         const maxFacesPerCube = 6;
         const verticesPerFace = 6;
@@ -323,7 +323,7 @@ class Patch {
 
         const geometry = new THREE.BufferGeometry();
         const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
-        verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as any) = null });
+        verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as THREE.TypedArray | null) = null; });
         geometry.setAttribute(Patch.dataAttributeName, verticesDataBuffer);
         geometry.setDrawRange(0, iVertice);
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
