@@ -11,7 +11,7 @@ function computeGeometryStats(object: THREE.Object3D): void {
             const mesh = object as THREE.Mesh;
             const geometry = (mesh as THREE.Mesh).geometry;
 
-            const posAttribute = geometry.attributes.position || geometry.attributes.aEncodedData;
+            const posAttribute = geometry.attributes.position || geometry.attributes.aData;
             const meshVerticesCount = posAttribute.count;
 
             let meshTrianglesCount: number;

@@ -29,7 +29,7 @@ function encodeData(x: number, y: number, z: number, faceId: number, edgeRoundne
 
 class Patch {
     public static readonly maxPatchSize: number = encodedPosX.maxValue;
-    public static readonly dataAttributeName: string = "aEncodedData";
+    public static readonly dataAttributeName: string = "aData";
 
     public static readonly parameters = {
         smoothEdges: {
@@ -68,12 +68,12 @@ class Patch {
         flat varying uint vData;
 
         void main(void) {
-            vec3 position = vec3(uvec3(
+            vec3 worldPosition = vec3(uvec3(
                 ${encodedPosX.glslDecode(Patch.dataAttributeName)},
                 ${encodedPosY.glslDecode(Patch.dataAttributeName)},
                 ${encodedPosZ.glslDecode(Patch.dataAttributeName)}
             ));
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
     
             const vec2 uvs[] = vec2[](
                 vec2(0,0),
