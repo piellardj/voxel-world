@@ -1,3 +1,4 @@
+import { ConstVec3 } from "../helpers/types";
 import { THREE } from "../three-usage";
 
 const vertices = {
@@ -11,17 +12,17 @@ const vertices = {
     mmm: new THREE.Vector3(0, 0, 0),
 };
 type FaceVertex = {
-    readonly vertex: THREE.Vector3;
-    readonly shadowingNeighbourVoxels: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+    readonly vertex: ConstVec3;
+    readonly shadowingNeighbourVoxels: [ConstVec3, ConstVec3, ConstVec3];
     readonly edgeNeighbourVoxels: {
-        readonly x: [THREE.Vector3, THREE.Vector3];
-        readonly y: [THREE.Vector3, THREE.Vector3];
+        readonly x: [ConstVec3, ConstVec3];
+        readonly y: [ConstVec3, ConstVec3];
     };
 };
 
 type FaceType = "up" | "down" | "left" | "right" | "front" | "back";
 
-const normals: Record<FaceType, THREE.Vector3> = {
+const normals: Record<FaceType, ConstVec3> = {
     up: new THREE.Vector3(0, +1, 0),
     down: new THREE.Vector3(0, -1, 0),
     left: new THREE.Vector3(-1, 0, 0),
@@ -34,16 +35,16 @@ type Face = {
     readonly id: number;
     readonly type: FaceType;
     readonly vertices: [FaceVertex, FaceVertex, FaceVertex, FaceVertex];
-    readonly normal: THREE.Vector3;
-    readonly uvUp: THREE.Vector3;
-    readonly uvRight: THREE.Vector3;
+    readonly normal: ConstVec3;
+    readonly uvUp: ConstVec3;
+    readonly uvRight: ConstVec3;
 };
 
 const faceIndices: [number, number, number, number, number, number] = [0, 2, 1, 1, 2, 3];
 
 let iF = 0;
 
-function buildFace(type: FaceType, v00: THREE.Vector3, v01: THREE.Vector3, v10: THREE.Vector3, v11: THREE.Vector3): Face {
+function buildFace(type: FaceType, v00: ConstVec3, v01: ConstVec3, v10: ConstVec3, v11: ConstVec3): Face {
     const normal = normals[type];
     const uvUp = new THREE.Vector3().subVectors(v01, v00);
     const uvRight = new THREE.Vector3().subVectors(v10, v00);
@@ -143,5 +144,5 @@ const faces: Record<FaceType, Face> = {
 };
 const facesById = Object.values(faces).sort((face1: Face, face2: Face) => face1.id - face2.id);
 
-export { faceIndices, faces, type FaceVertex, facesById };
+export { faceIndices, faces, facesById, type FaceVertex };
 

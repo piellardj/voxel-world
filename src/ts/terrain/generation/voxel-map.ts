@@ -1,4 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
+import { ConstVec3 } from '../../helpers/types';
 import { THREE } from "../../three-usage";
 import { EVoxelType, IVoxelMap, Voxel } from '../i-voxel-map';
 
@@ -8,7 +9,7 @@ type StoredVoxel = {
 };
 
 class VoxelMap implements IVoxelMap {
-    public readonly size: THREE.Vector3;
+    public readonly size: ConstVec3;
     private readonly voxels: ReadonlyArray<StoredVoxel>;
 
     public constructor(width: number, height: number, altitude: number) {
@@ -33,7 +34,7 @@ class VoxelMap implements IVoxelMap {
         console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels).`);
     }
 
-    public getMaxVoxelsCount(from: THREE.Vector3, to: THREE.Vector3): number {
+    public getMaxVoxelsCount(from: ConstVec3, to: ConstVec3): number {
         const fromX = Math.max(from.x, 0);
         const fromZ = Math.max(from.z, 0);
 
@@ -43,7 +44,7 @@ class VoxelMap implements IVoxelMap {
         return (toX - fromX) * (toZ - fromZ);
     }
 
-    public *iterateOnVoxels(from: THREE.Vector3, to: THREE.Vector3): Generator<Voxel> {
+    public *iterateOnVoxels(from: ConstVec3, to: ConstVec3): Generator<Voxel> {
         if (to.x < from.x || to.y < from.y || to.z < from.z) {
             throw new Error();
         }

@@ -1,3 +1,4 @@
+import { ConstVec3 } from "../helpers/types";
 import { THREE } from "../three-usage";
 import * as Cube from "./cube";
 import { EVoxelType, IVoxelMap } from "./i-voxel-map";
@@ -176,7 +177,7 @@ class Patch {
         `,
     });
 
-    public readonly container: THREE.Object3D;
+    public readonly container = new THREE.Object3D();
 
     public readonly parameters = {
         voxels: {
@@ -194,7 +195,7 @@ class Patch {
         },
     };
 
-    public readonly patchSize: THREE.Vector3;
+    public readonly patchSize: ConstVec3;
     private gpuResources: {
         readonly mesh: THREE.Mesh;
         readonly material: THREE.ShaderMaterial;

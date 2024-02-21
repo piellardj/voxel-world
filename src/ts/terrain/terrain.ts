@@ -1,3 +1,4 @@
+import { ConstVec3 } from "../helpers/types";
 import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
@@ -84,7 +85,7 @@ class Terrain {
         this.patches = [];
     }
 
-    private static computePatchSize(): THREE.Vector3 {
+    private static computePatchSize(): ConstVec3 {
         const patchSize = Patch.maxPatchSize.clone();
         const patchSizeFromUrl = tryGetUrlNumber("patchsize");
         if (patchSizeFromUrl !== null) {
