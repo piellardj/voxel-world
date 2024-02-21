@@ -36,6 +36,7 @@ class Patch {
             enabled: true,
             radius: 0.1,
             maxRadius: 0.3, // is constant
+            quality: 2,
         },
         ao: {
             enabled: true,
@@ -56,6 +57,7 @@ class Patch {
             uAoStrength: { value: 0 },
             uAoSpread: { value: 0 },
             uSmoothEdgeRadius: { value: 0 },
+            uSmoothEdgeMethod: { value: 0 },
         },
         vertexShader: `
         attribute uint ${Patch.dataAttributeName};
@@ -101,24 +103,43 @@ class Patch {
         uniform float uAoStrength;
         uniform float uAoSpread;
         uniform float uSmoothEdgeRadius;
+        uniform uint uSmoothEdgeMethod;
 
         varying vec2 vUv;
         varying vec2 vEdgeRoundness;
         varying float vAo;
         flat varying uint vData;
 
-        vec3 computeWorldNormal() {
+        vec3 computeModelNormal() {
             uint faceId = ${encodedFaceId.glslDecode("vData")};
 
-            const vec3 normals[] = vec3[](
+            const vec3 modelFaceNormals[] = vec3[](
                 ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
             );
-            vec3 worldNormal = normals[faceId];
+            vec3 modelFaceNormal = modelFaceNormals[faceId];
 
             if (uSmoothEdgeRadius <= 0.0) {
-                return worldNormal;
+                return modelFaceNormal;
             }
             
+            vec3 localNormal;
+    
+            vec2 edgeRoundness = step(${Patch.parameters.smoothEdges.maxRadius.toFixed(2)}, vEdgeRoundness);
+            if (uSmoothEdgeMethod == 0u) {
+                vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
+                vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
+                localNormal = normalize(vec3(vUv, 0) - roundnessCenter);
+            } else if (uSmoothEdgeMethod == 1u) {
+                vec2 symetricUv = clamp(vUv - 0.5, -0.5,  0.5);
+                vec2 distanceFromMargin = edgeRoundness * sign(symetricUv) * max(abs(symetricUv) - (0.5 - uSmoothEdgeRadius), 0.0) / uSmoothEdgeRadius;
+                localNormal = normalize(vec3(distanceFromMargin, 1));
+            } else if (uSmoothEdgeMethod == 2u) {
+                vec2 symetricUv = clamp(vUv - 0.5, -0.5,  0.5);
+                vec2 distanceFromMargin = edgeRoundness * sign(symetricUv) * max(abs(symetricUv) - (0.5 - uSmoothEdgeRadius), 0.0) / uSmoothEdgeRadius;
+                distanceFromMargin = sign(distanceFromMargin) * distanceFromMargin * distanceFromMargin;
+                localNormal = normalize(vec3(distanceFromMargin, 1));
+            }
+
             const vec3 uvUps[] = vec3[](
                 ${Cube.facesById.map(face => `vec3(${face.uvUp.x},${face.uvUp.y},${face.uvUp.z})`).join(", ")}
             );
@@ -129,16 +150,8 @@ class Patch {
             );
             vec3 uvRight = uvRights[faceId];
 
-            vec2 edgeRoundness = step(${Patch.parameters.smoothEdges.maxRadius.toFixed(2)}, vEdgeRoundness);
-            vec2 isEdge2 = edgeRoundness * (1.0 - step(uSmoothEdgeRadius, vUv) + step(1.0 - uSmoothEdgeRadius, vUv));
-            
-            vec2 isEdgeBottomLeft = edgeRoundness * max(vec2(0), uSmoothEdgeRadius - vUv) / uSmoothEdgeRadius;
-            vec2 isEdgeTopRight = edgeRoundness * max(vec2(0), vUv - (1.0 - uSmoothEdgeRadius)) / uSmoothEdgeRadius;
 
-            return normalize(
-                worldNormal
-                + isEdgeTopRight.x * uvRight - isEdgeBottomLeft.x * uvRight
-                + isEdgeTopRight.y * uvUp - isEdgeBottomLeft.y * uvUp);
+            return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * modelFaceNormal;
         }
 
         void main(void) {
@@ -153,9 +166,8 @@ class Patch {
             ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
             vec3 color = texelFetch(uTexture, texel, 0).rgb;
             
-            vec3 worldNormal = computeWorldNormal();
-
-            color = 0.5 + 0.5 * worldNormal;
+            vec3 modelFaceNormal = computeModelNormal();
+            color = 0.5 + 0.5 * modelFaceNormal;
             
             float light = 1.0;
             float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
@@ -172,6 +184,7 @@ class Patch {
         Patch.material.uniforms.uAoStrength.value = +Patch.parameters.ao.enabled * Patch.parameters.ao.strength;
         Patch.material.uniforms.uAoSpread.value = Patch.parameters.ao.spread;
         Patch.material.uniforms.uSmoothEdgeRadius.value = +Patch.parameters.smoothEdges.enabled * Patch.parameters.smoothEdges.radius;
+        Patch.material.uniforms.uSmoothEdgeMethod.value = Patch.parameters.smoothEdges.quality;
     }
 
     public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {

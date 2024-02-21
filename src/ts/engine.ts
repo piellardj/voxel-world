@@ -78,6 +78,7 @@ class Engine {
             folder.open();
             folder.add(Terrain.parameters.smoothEdges, "enabled");
             folder.add(Terrain.parameters.smoothEdges, "radius", 0, Terrain.parameters.smoothEdges.maxRadius);
+            folder.add(Terrain.parameters.smoothEdges, "quality", 0, 2, 1);
         }
     }
 
