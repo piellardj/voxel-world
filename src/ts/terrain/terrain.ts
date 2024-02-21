@@ -36,12 +36,12 @@ class Terrain {
                     const patchEnd = new THREE.Vector3(
                         Math.min(map.size.x, patchStart.x + patchSize.x),
                         Math.min(map.size.y, patchStart.y + patchSize.y),
-                        Math.min(map.size.z, patchStart.y + patchSize.z),
+                        Math.min(map.size.z, patchStart.z + patchSize.z),
                     );
 
                     const startTimestamp = performance.now();
                     const patch = new Patch(map, patchStart, patchEnd);
-                    console.log(`Generated patch in ${(performance.now() - startTimestamp).toFixed(1)} ms.`);
+                    console.log(`Generated patch of size ${patch.patchSize.x}x${patch.patchSize.y}x${patch.patchSize.z} in ${(performance.now() - startTimestamp).toFixed(1)} ms.`);
                     this.patches.push(patch);
                     this.container.add(patch.container);
                 }

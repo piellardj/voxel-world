@@ -21,6 +21,7 @@ interface IVoxelMap {
         readonly z: number;
     };
 
+    getMaxVoxelsCount(from: Uint3, to: Uint3): number;
     iterateOnVoxels(from: Uint3, to: Uint3): Generator<Voxel>;
     voxelExists(x: number, y: number, z: number): boolean;
 }

@@ -198,7 +198,7 @@ class Patch {
     private gpuResources: {
         readonly mesh: THREE.Mesh;
         readonly material: THREE.ShaderMaterial;
-    } | null;
+    } | null = null;
 
     public constructor(map: IVoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3) {
         this.patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
@@ -206,7 +206,11 @@ class Patch {
             throw new Error(`Patch is too big ${this.patchSize.x}x${this.patchSize.y}x${this.patchSize.z} (max is ${Patch.maxPatchSize})`);
         }
 
-        const voxelsCountPerPatch = this.patchSize.x * this.patchSize.z; // TODO may be too small
+        const voxelsCountPerPatch = map.getMaxVoxelsCount(patchStart, patchEnd);
+        if (voxelsCountPerPatch <= 0) {
+            return;
+        };
+
         const maxFacesPerCube = 6;
         const verticesPerFace = 6;
         const uint32PerVertex = 1;
