@@ -2,6 +2,7 @@ import { GUI } from "dat.gui";
 import { Debouncer } from "./helpers/debouncer";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
+import { EDisplayMode } from "./terrain/patch-compact";
 import { Terrain } from "./terrain/terrain";
 import { OrbitControls, Stats, THREE } from "./three-usage";
 
@@ -62,9 +63,9 @@ class Engine {
 
         this.gui = new GUI();
         {
-            const folder = this.gui.addFolder("Textures");
+            const folder = this.gui.addFolder("Voxels");
             folder.open();
-            folder.add(Terrain.parameters.textures, "enabled");
+            folder.add(Terrain.parameters.voxels, "displayMode", { texture: EDisplayMode.TEXTURES, normals: EDisplayMode.NORMALS, grey: EDisplayMode.GREY });
         }
         {
             const folder = this.gui.addFolder("Ambient occlusion");
@@ -78,7 +79,7 @@ class Engine {
             folder.open();
             folder.add(Terrain.parameters.smoothEdges, "enabled");
             folder.add(Terrain.parameters.smoothEdges, "radius", 0, Terrain.parameters.smoothEdges.maxRadius);
-            folder.add(Terrain.parameters.smoothEdges, "quality", 0, 2, 1);
+            folder.add(Terrain.parameters.smoothEdges, "quality", [0, 1, 2]);
         }
     }
 

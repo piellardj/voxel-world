@@ -27,11 +27,20 @@ function encodeData(x: number, y: number, z: number, faceId: number, edgeRoundne
         + encodedAo.encode(ao);
 }
 
+enum EDisplayMode {
+    TEXTURES,
+    NORMALS,
+    GREY,
+}
+
 class Patch {
     public static readonly maxPatchSize: number = encodedPosX.maxValue;
     public static readonly dataAttributeName: string = "aData";
 
     public static readonly parameters = {
+        voxels: {
+            displayMode: EDisplayMode.TEXTURES,
+        },
         smoothEdges: {
             enabled: true,
             radius: 0.1,
@@ -43,17 +52,12 @@ class Patch {
             strength: 0.4,
             spread: 0.85,
         },
-        textures: {
-            enabled: true,
-        },
     };
-
-    private static readonly textureMaterials = new THREE.TextureLoader().load("resources/materials.png");
-    private static readonly textureWhite = new THREE.TextureLoader().load("resources/materials_white.png");
 
     private static material: THREE.ShaderMaterial = new THREE.ShaderMaterial({
         uniforms: {
-            uTexture: { value: null },
+            uDisplayMode: { value: 0 },
+            uTexture: { value: new THREE.TextureLoader().load("resources/materials.png") },
             uAoStrength: { value: 0 },
             uAoSpread: { value: 0 },
             uSmoothEdgeRadius: { value: 0 },
@@ -106,6 +110,7 @@ class Patch {
         uniform float uAoSpread;
         uniform float uSmoothEdgeRadius;
         uniform uint uSmoothEdgeMethod;
+        uniform uint uDisplayMode;
 
         varying vec2 vUv;
         varying vec2 vEdgeRoundness;
@@ -165,11 +170,14 @@ class Patch {
             );
             ivec2 material = materials[${encodedMaterial.glslDecode("vData")}];
 
-            ivec2 texel = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
-            vec3 color = texelFetch(uTexture, texel, 0).rgb;
-            
-            vec3 modelFaceNormal = computeModelNormal();
-            color = 0.5 + 0.5 * modelFaceNormal;
+            vec3 color = vec3(0.75);
+            if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
+                ivec2 texelCoords = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
+                color = texelFetch(uTexture, texelCoords, 0).rgb;
+            } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
+                vec3 modelFaceNormal = computeModelNormal();
+                color = 0.5 + 0.5 * modelFaceNormal;
+            }
             
             float light = 1.0;
             float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
@@ -182,11 +190,11 @@ class Patch {
     });
 
     public static updateUniforms(): void {
-        Patch.material.uniforms.uTexture.value = Patch.parameters.textures.enabled ? Patch.textureMaterials : Patch.textureWhite;
         Patch.material.uniforms.uAoStrength.value = +Patch.parameters.ao.enabled * Patch.parameters.ao.strength;
         Patch.material.uniforms.uAoSpread.value = Patch.parameters.ao.spread;
         Patch.material.uniforms.uSmoothEdgeRadius.value = +Patch.parameters.smoothEdges.enabled * Patch.parameters.smoothEdges.radius;
         Patch.material.uniforms.uSmoothEdgeMethod.value = Patch.parameters.smoothEdges.quality;
+        Patch.material.uniforms.uDisplayMode.value = Patch.parameters.voxels.displayMode;
     }
 
     public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {
@@ -290,6 +298,7 @@ class Patch {
 }
 
 export {
+    EDisplayMode,
     Patch
 };
 
