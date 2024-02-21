@@ -11,6 +11,10 @@ class Terrain {
         voxels: {
             displayMode: EDisplayMode.TEXTURES,
         },
+        lighting: {
+            ambient: 0.7,
+            diffuse: 0.8,
+        },
         smoothEdges: {
             enabled: true,
             radius: 0.1,
@@ -66,6 +70,9 @@ class Terrain {
     public updateUniforms(): void {
         for (const patch of this.patches) {
             patch.parameters.voxels.displayMode = this.parameters.voxels.displayMode;
+
+            patch.parameters.lighting.ambient = this.parameters.lighting.ambient;
+            patch.parameters.lighting.diffuse = this.parameters.lighting.diffuse;
 
             patch.parameters.smoothEdges.enabled = this.parameters.smoothEdges.enabled;
             patch.parameters.smoothEdges.radius = this.parameters.smoothEdges.radius;

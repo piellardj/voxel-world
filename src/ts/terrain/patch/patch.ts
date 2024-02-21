@@ -12,9 +12,9 @@ enum EMaterial {
 }
 
 const packedUintFactory = new PackedUintFactory();
-const encodedPosX = packedUintFactory.encodePart(256);
+const encodedPosX = packedUintFactory.encodePart(128);
 const encodedPosY = packedUintFactory.encodePart(64);
-const encodedPosZ = packedUintFactory.encodePart(256);
+const encodedPosZ = packedUintFactory.encodePart(128);
 const encodedFaceId = packedUintFactory.encodePart(6);
 const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
 const encodedAo = packedUintFactory.encodePart(4);
@@ -48,6 +48,8 @@ class Patch {
             uAoSpread: { value: 0 },
             uSmoothEdgeRadius: { value: 0 },
             uSmoothEdgeMethod: { value: 0 },
+            uAmbient: { value: 0 },
+            uDiffuse: { value: 0 },
         },
         vertexShader: `
         in uint ${Patch.dataAttributeName};
@@ -99,6 +101,8 @@ class Patch {
         fragmentShader: `precision mediump float;
 
         uniform sampler2D uTexture;
+        uniform float uAmbient;
+        uniform float uDiffuse;
         uniform float uAoStrength;
         uniform float uAoSpread;
         uniform float uSmoothEdgeRadius;
@@ -161,16 +165,20 @@ class Patch {
             );
             ivec2 material = materials[${encodedMaterial.glslDecode("vData")}];
 
+            vec3 modelFaceNormal = computeModelNormal();
+
             vec3 color = vec3(0.75);
             if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
                 ivec2 texelCoords = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
                 color = texelFetch(uTexture, texelCoords, 0).rgb;
             } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
-                vec3 modelFaceNormal = computeModelNormal();
                 color = 0.5 + 0.5 * modelFaceNormal;
             }
             
-            float light = 1.0;
+            const vec3 diffuseDirection = normalize(vec3(1, 1, 1));
+            float diffuse = max(0.0, dot(modelFaceNormal, diffuseDirection));
+
+            float light = uAmbient + uDiffuse * diffuse;
             float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
             light *= ao;
             color *= light;
@@ -185,6 +193,10 @@ class Patch {
     public readonly parameters = {
         voxels: {
             displayMode: EDisplayMode.TEXTURES,
+        },
+        lighting: {
+            ambient: 0.7,
+            diffuse: 0.8,
         },
         smoothEdges: {
             enabled: true,
@@ -214,6 +226,7 @@ class Patch {
 
         const material = Patch.material.clone();
         const mesh = new THREE.Mesh(geometry, material);
+        mesh.frustumCulled = false;
         mesh.translateX(patchStart.x);
         mesh.translateY(patchStart.y);
         mesh.translateZ(patchStart.z);
@@ -230,6 +243,8 @@ class Patch {
             this.gpuResources.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
             this.gpuResources.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
             this.gpuResources.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
+            this.gpuResources.material.uniforms.uAmbient.value = this.parameters.lighting.ambient;
+            this.gpuResources.material.uniforms.uDiffuse.value = this.parameters.lighting.diffuse;
         }
     }
 

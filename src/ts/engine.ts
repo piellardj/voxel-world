@@ -75,6 +75,12 @@ class Engine {
             folder.add(this.terrain.parameters.voxels, "displayMode", { texture: EDisplayMode.TEXTURES, normals: EDisplayMode.NORMALS, grey: EDisplayMode.GREY });
         }
         {
+            const folder = this.gui.addFolder("Lighting");
+            folder.open();
+            folder.add(this.terrain.parameters.lighting, "ambient", 0, 1);
+            folder.add(this.terrain.parameters.lighting, "diffuse", 0, 1);
+        }
+        {
             const folder = this.gui.addFolder("Ambient occlusion");
             folder.open();
             folder.add(this.terrain.parameters.ao, "enabled");
