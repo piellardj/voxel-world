@@ -2,9 +2,11 @@ import { GUI } from "dat.gui";
 import { Debouncer } from "./helpers/debouncer";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
-import {  EDisplayMode, Patch } from "./terrain/patch";
+import { EDisplayMode, Patch } from "./terrain/patch";
 import { Terrain } from "./terrain/terrain";
 import { OrbitControls, Stats, THREE } from "./three-usage";
+import { getUrlNumber } from "./helpers/url-param";
+import { VoxelMap } from "./terrain/generation/voxel-map";
 
 
 class Engine {
@@ -56,9 +58,14 @@ class Engine {
         this.cameraControl.dampingFactor = 0.05;
 
         this.scene = new THREE.Scene();
-        this.terrain = new Terrain();
-        this.scene.add(this.terrain.container);
         this.scene.add(new THREE.AxesHelper(20));
+
+        const mapWidth = getUrlNumber("mapwidth", 256);
+        const mapHeight = getUrlNumber("mapheight", 256);
+        const map = new VoxelMap(mapWidth, mapHeight, 10);
+        this.terrain = new Terrain(map);
+        this.scene.add(this.terrain.container);
+
         computeGeometryStats(this.scene);
 
         this.gui = new GUI();

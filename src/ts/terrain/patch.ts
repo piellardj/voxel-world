@@ -1,7 +1,7 @@
 import { THREE } from "../three-usage";
 import * as Cube from "./cube";
+import { EVoxelType, IVoxelMap } from "./i-voxel-map";
 import { PackedUintFactory } from "./uint-packing";
-import { EVoxelType, VoxelMap } from "./voxel-map";
 
 enum EMaterial {
     ROCK = 2,
@@ -194,89 +194,86 @@ class Patch {
         },
     };
 
-
+    public readonly patchSize: THREE.Vector3;
     private gpuResources: {
         readonly mesh: THREE.Mesh;
         readonly material: THREE.ShaderMaterial;
     } | null;
 
-    public constructor(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3) {
-        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
-        if (patchSize.x > encodedPosX.maxValue || patchSize.y > encodedPosY.maxValue || patchSize.z > encodedPosZ.maxValue) {
-            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${Patch.maxPatchSize})`);
+    public constructor(map: IVoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3) {
+        this.patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
+        if (this.patchSize.x > encodedPosX.maxValue || this.patchSize.y > encodedPosY.maxValue || this.patchSize.z > encodedPosZ.maxValue) {
+            throw new Error(`Patch is too big ${this.patchSize.x}x${this.patchSize.y}x${this.patchSize.z} (max is ${Patch.maxPatchSize})`);
         }
-        const voxelsCountPerPatch = patchSize.x * patchSize.z;
 
+        const voxelsCountPerPatch = this.patchSize.x * this.patchSize.z; // TODO may be too small
         const maxFacesPerCube = 6;
         const verticesPerFace = 6;
         const uint32PerVertex = 1;
         const verticesData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * verticesPerFace * uint32PerVertex);
 
         let iVertice = 0;
-        for (let iX = 0; iX < patchSize.x; iX++) {
-            for (let iZ = 0; iZ < patchSize.z; iZ++) {
-                const voxelX = patchStart.x + iX;
-                const voxelZ = patchStart.z + iZ;
-                const voxel = map.getVoxel(voxelX, voxelZ);
-                if (!voxel) {
+        for (const voxel of map.iterateOnVoxels(patchStart, patchEnd)) {
+            const voxelX = voxel.position.x;
+            const voxelY = voxel.position.y;
+            const voxelZ = voxel.position.z;
+
+            const iX = voxelX - patchStart.x;
+            const iY = voxelY - patchStart.y;
+            const iZ = voxelZ - patchStart.z;
+
+            const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
+            for (const face of Object.values(Cube.faces)) {
+                if (map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
+                    // this face will be hidden -> skip it
                     continue;
                 }
-                const voxelY = voxel.y;
-                const iY = voxelY - patchStart.y;
 
-                const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
-                for (const face of Object.values(Cube.faces)) {
-                    if (map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
-                        // this face will be hidden -> skip it
-                        continue;
-                    }
-
-                    let faceMaterial: EMaterial;
-                    if (voxel.material === EVoxelType.ROCK) {
-                        faceMaterial = EMaterial.ROCK;
-                    } else if (voxel.material === EVoxelType.DIRT) {
-                        if (face.type === "up") {
-                            faceMaterial = EMaterial.GRASS;
-                        } else if (face.type === "down") {
-                            faceMaterial = EMaterial.SAND;
-                        } else {
-                            faceMaterial = EMaterial.GRASS_SAND;
-                        }
+                let faceMaterial: EMaterial;
+                if (voxel.type === EVoxelType.ROCK) {
+                    faceMaterial = EMaterial.ROCK;
+                } else if (voxel.type === EVoxelType.DIRT) {
+                    if (face.type === "up") {
+                        faceMaterial = EMaterial.GRASS;
+                    } else if (face.type === "down") {
+                        faceMaterial = EMaterial.SAND;
                     } else {
-                        throw new Error("Unknown material");
+                        faceMaterial = EMaterial.GRASS_SAND;
+                    }
+                } else {
+                    throw new Error("Unknown material");
+                }
+
+                face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
+                    let ao = 0;
+                    const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
+                    if (a && b) {
+                        ao = 3;
+                    } else {
+                        ao = +a + +b + +c;
                     }
 
-                    face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
-                        let ao = 0;
-                        const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
-                        if (a && b) {
-                            ao = 3;
-                        } else {
-                            ao = +a + +b + +c;
+                    let roundnessX = true;
+                    let roundnessY = true;
+                    if (faceVertex.edgeNeighbourVoxels) {
+                        for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
+                            roundnessX &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
                         }
-
-                        let roundnessX = true;
-                        let roundnessY = true;
-                        if (faceVertex.edgeNeighbourVoxels) {
-                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
-                                roundnessX &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
-                            }
-                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
-                                roundnessY &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
-                            }
+                        for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
+                            roundnessY &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
                         }
-                        faceVerticesData[faceVertexIndex] = encodeData(
-                            faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
-                            face.id,
-                            [roundnessX, roundnessY],
-                            faceMaterial,
-                            ao,
-                        );
-                    });
-
-                    for (const index of Cube.faceIndices) {
-                        verticesData[iVertice++] = faceVerticesData[index];
                     }
+                    faceVerticesData[faceVertexIndex] = encodeData(
+                        faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
+                        face.id,
+                        [roundnessX, roundnessY],
+                        faceMaterial,
+                        ao,
+                    );
+                });
+
+                for (const index of Cube.faceIndices) {
+                    verticesData[iVertice++] = faceVerticesData[index];
                 }
             }
         }
@@ -286,10 +283,8 @@ class Patch {
         geometry.setAttribute(Patch.dataAttributeName, verticesDataBuffer);
         geometry.setDrawRange(0, iVertice);
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
-        geometry.boundingSphere = new THREE.Sphere(
-            new THREE.Vector3().subVectors(patchEnd, patchStart).multiplyScalar(0.5),
-            Math.sqrt(patchSize.x * patchSize.x + patchSize.y * patchSize.y + patchSize.z * patchSize.z)
-        );
+        const boundingSphere = new THREE.Sphere();
+        geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
 
         const material = Patch.material.clone();
         const mesh = new THREE.Mesh(geometry, material);

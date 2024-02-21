@@ -1,7 +1,7 @@
-import { getUrlNumber, tryGetUrlNumber } from "../helpers/url-param";
+import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
+import { IVoxelMap } from "./i-voxel-map";
 import { EDisplayMode, Patch } from "./patch";
-import { VoxelMap } from "./voxel-map";
 
 class Terrain {
     public readonly container: THREE.Group;
@@ -23,32 +23,30 @@ class Terrain {
     };
 
     private patches: Patch[] = [];
-    public constructor() {
+    public constructor(map: IVoxelMap) {
         this.container = new THREE.Group();
 
-        const mapWidth = getUrlNumber("mapwidth", 256);
-        const mapHeight = getUrlNumber("mapheight", 256);
-        const map = new VoxelMap(mapWidth, mapHeight, 10);
-
         const patchSize = Terrain.computePatchSize();
-        console.log(`Using patch size ${patchSize.x}x${patchSize.y}x${patchSize.z}.`);
+        console.log(`Using max patch size ${patchSize.x}x${patchSize.y}x${patchSize.z}.`);
 
-        for (let iPatchX = 0; iPatchX < map.size.x; iPatchX += patchSize.x) {
-            for (let iPatchZ = 0; iPatchZ < map.size.z; iPatchZ += patchSize.z) {
-                const patchStart = new THREE.Vector3(iPatchX, 0, iPatchZ);
-                const patchEnd = new THREE.Vector3(
-                    Math.min(map.size.x, iPatchX + patchSize.x),
-                    0,
-                    Math.min(map.size.z, iPatchZ + patchSize.z),
-                );
+        const patchStart = new THREE.Vector3();
+        for (patchStart.x = 0; patchStart.x < map.size.x; patchStart.x += patchSize.x) {
+            for (patchStart.y = 0; patchStart.y < map.size.y; patchStart.y += patchSize.y) {
+                for (patchStart.z = 0; patchStart.z < map.size.z; patchStart.z += patchSize.z) {
+                    const patchEnd = new THREE.Vector3(
+                        Math.min(map.size.x, patchStart.x + patchSize.x),
+                        Math.min(map.size.y, patchStart.y + patchSize.y),
+                        Math.min(map.size.z, patchStart.y + patchSize.z),
+                    );
 
-                const patch = new Patch(map, patchStart, patchEnd);
-                this.patches.push(patch);
-                this.container.add(patch.container);
+                    const startTimestamp = performance.now();
+                    const patch = new Patch(map, patchStart, patchEnd);
+                    console.log(`Generated patch in ${(performance.now() - startTimestamp).toFixed(1)} ms.`);
+                    this.patches.push(patch);
+                    this.container.add(patch.container);
+                }
             }
         }
-
-        console.log(`${(mapWidth * mapHeight).toLocaleString()} voxels in total (${mapWidth}x${mapHeight})`);
 
         this.container.translateX(-0.5 * map.size.x);
         this.container.translateZ(-0.5 * map.size.z);
