@@ -285,6 +285,7 @@ class Patch {
 
         const geometry = new THREE.BufferGeometry();
         const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
+        verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as any) = null });
         geometry.setAttribute(Patch.dataAttributeName, verticesDataBuffer);
         geometry.setDrawRange(0, iVertice);
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
