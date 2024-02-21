@@ -2,7 +2,7 @@ import { GUI } from "dat.gui";
 import { Debouncer } from "./helpers/debouncer";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
-import { EDisplayMode, Patch } from "./terrain/patch-compact";
+import {  EDisplayMode, Patch } from "./terrain/patch";
 import { Terrain } from "./terrain/terrain";
 import { OrbitControls, Stats, THREE } from "./three-usage";
 

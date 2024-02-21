@@ -1,85 +1,215 @@
 import { THREE } from "../three-usage";
-import { VoxelMap } from "./voxel-map";
+import * as Cube from "./cube";
+import { PackedUintFactory } from "./uint-packing";
+import { EVoxelType, VoxelMap } from "./voxel-map";
+
+enum EMaterial {
+    ROCK = 2,
+    SAND = 3,
+    GRASS = 1,
+    GRASS_SAND = 0,
+};
+
+const packedUintFactory = new PackedUintFactory();
+const encodedPosX = packedUintFactory.encodePart(256);
+const encodedPosY = packedUintFactory.encodePart(64);
+const encodedPosZ = packedUintFactory.encodePart(256);
+const encodedFaceId = packedUintFactory.encodePart(6);
+const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
+const encodedAo = packedUintFactory.encodePart(4);
+const encodedEdgeRoundness = packedUintFactory.encodePart(4);
+
+function encodeData(x: number, y: number, z: number, faceId: number, edgeRoundness: [boolean, boolean], materialCode: number, ao: number): number {
+    return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
+        + encodedFaceId.encode(faceId)
+        + encodedEdgeRoundness.encode(+edgeRoundness[0] + (+edgeRoundness[1] << 1))
+        + encodedMaterial.encode(materialCode)
+        + encodedAo.encode(ao);
+}
+
+enum EDisplayMode {
+    TEXTURES,
+    NORMALS,
+    GREY,
+}
 
 class Patch {
+    public static readonly maxPatchSize = new THREE.Vector3(encodedPosX.maxValue, encodedPosY.maxValue, encodedPosZ.maxValue);
+    public static readonly maxSmoothEdgeRadius = 0.3;
+    private static readonly dataAttributeName = "aData";
+
     private static material: THREE.ShaderMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+            uDisplayMode: { value: 0 },
+            uTexture: { value: new THREE.TextureLoader().load("resources/materials.png") },
+            uAoStrength: { value: 0 },
+            uAoSpread: { value: 0 },
+            uSmoothEdgeRadius: { value: 0 },
+            uSmoothEdgeMethod: { value: 0 },
+        },
         vertexShader: `
-        flat varying vec3 vWorldNormal;
-        
+        attribute uint ${Patch.dataAttributeName};
+
+        varying vec2 vUv;
+        varying vec2 vEdgeRoundness;
+        varying float vAo;
+        flat varying uint vData;
+
         void main(void) {
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            vWorldNormal = normal;
+            vec3 worldPosition = vec3(uvec3(
+                ${encodedPosX.glslDecode(Patch.dataAttributeName)},
+                ${encodedPosY.glslDecode(Patch.dataAttributeName)},
+                ${encodedPosZ.glslDecode(Patch.dataAttributeName)}
+            ));
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
+    
+            const vec2 uvs[] = vec2[](
+                vec2(0,0),
+                vec2(1,0),
+                vec2(0,1),
+                vec2(0,1),
+                vec2(1,0),
+                vec2(1,1)
+            );
+            int faceVertexId = gl_VertexID % 6;
+            vUv = uvs[faceVertexId];
+
+            const vec2 edgeRoundness[] = vec2[](
+                vec2(0,0),
+                vec2(1,0),
+                vec2(0,1),
+                vec2(1,1)
+            );
+            uint edgeRoundnessId = ${encodedEdgeRoundness.glslDecode(Patch.dataAttributeName)};
+            vEdgeRoundness = edgeRoundness[edgeRoundnessId];
+
+            vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
+
+            vData = ${Patch.dataAttributeName};
         }`,
         fragmentShader: `precision mediump float;
 
-        flat varying vec3 vWorldNormal;
+        uniform sampler2D uTexture;
+        uniform float uAoStrength;
+        uniform float uAoSpread;
+        uniform float uSmoothEdgeRadius;
+        uniform uint uSmoothEdgeMethod;
+        uniform uint uDisplayMode;
+
+        varying vec2 vUv;
+        varying vec2 vEdgeRoundness;
+        varying float vAo;
+        flat varying uint vData;
+
+        vec3 computeModelNormal() {
+            uint faceId = ${encodedFaceId.glslDecode("vData")};
+
+            const vec3 modelFaceNormals[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
+            );
+            vec3 modelFaceNormal = modelFaceNormals[faceId];
+
+            if (uSmoothEdgeRadius <= 0.0) {
+                return modelFaceNormal;
+            }
+            
+            vec3 localNormal;
+    
+            vec2 edgeRoundness = step(${Patch.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
+            if (uSmoothEdgeMethod == 0u) {
+                vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
+                vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
+                localNormal = normalize(vec3(vUv, 0) - roundnessCenter);
+            } else if (uSmoothEdgeMethod == 1u) {
+                vec2 symetricUv = clamp(vUv - 0.5, -0.5,  0.5);
+                vec2 distanceFromMargin = edgeRoundness * sign(symetricUv) * max(abs(symetricUv) - (0.5 - uSmoothEdgeRadius), 0.0) / uSmoothEdgeRadius;
+                localNormal = normalize(vec3(distanceFromMargin, 1));
+            } else if (uSmoothEdgeMethod == 2u) {
+                vec2 symetricUv = clamp(vUv - 0.5, -0.5,  0.5);
+                vec2 distanceFromMargin = edgeRoundness * sign(symetricUv) * max(abs(symetricUv) - (0.5 - uSmoothEdgeRadius), 0.0) / uSmoothEdgeRadius;
+                distanceFromMargin = sign(distanceFromMargin) * distanceFromMargin * distanceFromMargin;
+                localNormal = normalize(vec3(distanceFromMargin, 1));
+            }
+
+            const vec3 uvUps[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.uvUp.x},${face.uvUp.y},${face.uvUp.z})`).join(", ")}
+            );
+            vec3 uvUp = uvUps[faceId];
+
+            const vec3 uvRights[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.uvRight.x},${face.uvRight.y},${face.uvRight.z})`).join(", ")}
+            );
+            vec3 uvRight = uvRights[faceId];
+
+
+            return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * modelFaceNormal;
+        }
 
         void main(void) {
-            gl_FragColor = vec4(0.5 + 0.5 * vWorldNormal, 1);
+            const ivec2 materials[] = ivec2[](
+                ivec2(0,0),
+                ivec2(8,0),
+                ivec2(0,8),
+                ivec2(8,8)
+            );
+            ivec2 material = materials[${encodedMaterial.glslDecode("vData")}];
+
+            vec3 color = vec3(0.75);
+            if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
+                ivec2 texelCoords = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
+                color = texelFetch(uTexture, texelCoords, 0).rgb;
+            } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
+                vec3 modelFaceNormal = computeModelNormal();
+                color = 0.5 + 0.5 * modelFaceNormal;
+            }
+            
+            float light = 1.0;
+            float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
+            light *= ao;
+            color *= light;
+
+            gl_FragColor = vec4(color, 1);
         }
         `,
     });
 
-    public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {
-        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
+    public readonly container: THREE.Object3D;
 
+    public readonly parameters = {
+        voxels: {
+            displayMode: EDisplayMode.TEXTURES,
+        },
+        smoothEdges: {
+            enabled: true,
+            radius: 0.1,
+            quality: 2,
+        },
+        ao: {
+            enabled: true,
+            strength: 0.4,
+            spread: 0.85,
+        },
+    };
+
+
+    private gpuResources: {
+        readonly mesh: THREE.Mesh;
+        readonly material: THREE.ShaderMaterial;
+    } | null;
+
+    public constructor(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3) {
+        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
+        if (patchSize.x > encodedPosX.maxValue || patchSize.y > encodedPosY.maxValue || patchSize.z > encodedPosZ.maxValue) {
+            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${Patch.maxPatchSize})`);
+        }
         const voxelsCountPerPatch = patchSize.x * patchSize.z;
 
-        const vXpYpZp = new THREE.Vector3(+.5, +.5, +.5);
-        const vXmYpZp = new THREE.Vector3(-.5, +.5, +.5);
-        const vXpYmZp = new THREE.Vector3(+.5, -.5, +.5);
-        const vXmYmZp = new THREE.Vector3(-.5, -.5, +.5);
-        const vXpYpZm = new THREE.Vector3(+.5, +.5, -.5);
-        const vXmYpZm = new THREE.Vector3(-.5, +.5, -.5);
-        const vXpYmZm = new THREE.Vector3(+.5, -.5, -.5);
-        const vXmYmZm = new THREE.Vector3(-.5, -.5, -.5);
-
-        type Face = {
-            vertices: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
-            normal: THREE.Vector3;
-            indices: [number, number, number, number, number, number];
-        };
-
-        const faces: Record<"up" | "down" | "left" | "right" | "front" | "back", Face> = {
-            up: {
-                vertices: [vXmYpZm, vXmYpZp, vXpYpZm, vXpYpZp],
-                normal: new THREE.Vector3(0, 1, 0),
-                indices: [0, 1, 2, 1, 3, 2],
-            },
-            down: {
-                vertices: [vXmYmZm, vXmYmZp, vXpYmZm, vXpYmZp],
-                normal: new THREE.Vector3(0, -1, 0),
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            left: {
-                vertices: [vXmYmZp, vXmYpZp, vXmYmZm, vXmYpZm],
-                normal: new THREE.Vector3(-1, 0, 0),
-                indices: [0, 1, 2, 1, 3, 2],
-            },
-            right: {
-                vertices: [vXpYmZp, vXpYpZp, vXpYmZm, vXpYpZm],
-                normal: new THREE.Vector3(1, 0, 0),
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-            front: {
-                vertices: [vXmYmZm, vXmYpZm, vXpYmZm, vXpYpZm],
-                normal: new THREE.Vector3(0, 0, -1),
-                indices: [0, 1, 2, 1, 3, 2],
-            },
-            back: {
-                vertices: [vXmYmZp, vXmYpZp, vXpYmZp, vXpYpZp],
-                normal: new THREE.Vector3(0, 0, 1),
-                indices: [0, 2, 1, 1, 2, 3],
-            },
-        };
-
-        const vertices = new Float32Array(voxelsCountPerPatch * 6 * 4 * 3);
-        const normals = new Float32Array(voxelsCountPerPatch * 6 * 4 * 3);
-        const indices: number[] = new Array(voxelsCountPerPatch * 6 * 6);
+        const maxFacesPerCube = 6;
+        const verticesPerFace = 6;
+        const uint32PerVertex = 1;
+        const verticesData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * verticesPerFace * uint32PerVertex);
 
         let iVertice = 0;
-        let iNormal = 0;
-        let iIndex = 0;
         for (let iX = 0; iX < patchSize.x; iX++) {
             for (let iZ = 0; iZ < patchSize.z; iZ++) {
                 const voxelX = patchStart.x + iX;
@@ -91,50 +221,106 @@ class Patch {
                 const voxelY = voxel.y;
                 const iY = voxelY - patchStart.y;
 
-                for (const face of Object.values(faces)) {
+                const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
+                for (const face of Object.values(Cube.faces)) {
                     if (map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
                         // this face will be hidden -> skip it
                         continue;
                     }
 
-                    const firstVertexIndex = iVertice / 3;
-
-                    for (const faceVertex of face.vertices) {
-                        vertices[iVertice++] = faceVertex.x + iX;
-                        vertices[iVertice++] = faceVertex.y + iY;
-                        vertices[iVertice++] = faceVertex.z + iZ;
-
-                        normals[iNormal++] = face.normal.x;
-                        normals[iNormal++] = face.normal.y;
-                        normals[iNormal++] = face.normal.z;
+                    let faceMaterial: EMaterial;
+                    if (voxel.material === EVoxelType.ROCK) {
+                        faceMaterial = EMaterial.ROCK;
+                    } else if (voxel.material === EVoxelType.DIRT) {
+                        if (face.type === "up") {
+                            faceMaterial = EMaterial.GRASS;
+                        } else if (face.type === "down") {
+                            faceMaterial = EMaterial.SAND;
+                        } else {
+                            faceMaterial = EMaterial.GRASS_SAND;
+                        }
+                    } else {
+                        throw new Error("Unknown material");
                     }
 
-                    for (const faceIndex of face.indices) {
-                        indices[iIndex++] = faceIndex + firstVertexIndex;
+                    face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
+                        let ao = 0;
+                        const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
+                        if (a && b) {
+                            ao = 3;
+                        } else {
+                            ao = +a + +b + +c;
+                        }
+
+                        let roundnessX = true;
+                        let roundnessY = true;
+                        if (faceVertex.edgeNeighbourVoxels) {
+                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
+                                roundnessX &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
+                            }
+                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
+                                roundnessY &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
+                            }
+                        }
+                        faceVerticesData[faceVertexIndex] = encodeData(
+                            faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
+                            face.id,
+                            [roundnessX, roundnessY],
+                            faceMaterial,
+                            ao,
+                        );
+                    });
+
+                    for (const index of Cube.faceIndices) {
+                        verticesData[iVertice++] = faceVerticesData[index];
                     }
                 }
             }
         }
 
         const geometry = new THREE.BufferGeometry();
-        const verticesBuffer = new THREE.Float32BufferAttribute(vertices.subarray(0, iVertice), 3, false);
-        const normalsBuffer = new THREE.Float32BufferAttribute(normals.subarray(0, iNormal), 3, false);
-        geometry.setAttribute("position", verticesBuffer);
-        geometry.setAttribute("normal", normalsBuffer);
-        geometry.setIndex(indices.slice(0, iIndex));
+        const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
+        geometry.setAttribute(Patch.dataAttributeName, verticesDataBuffer);
+        geometry.setDrawRange(0, iVertice);
+        geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
+        geometry.boundingSphere = new THREE.Sphere(
+            new THREE.Vector3().subVectors(patchEnd, patchStart).multiplyScalar(0.5),
+            Math.sqrt(patchSize.x * patchSize.x + patchSize.y * patchSize.y + patchSize.z * patchSize.z)
+        );
 
-        const totalBytesSize = verticesBuffer.array.byteLength + normalsBuffer.array.byteLength + iIndex * Uint32Array.BYTES_PER_ELEMENT;
-        console.log(`Patch bytes size: ${totalBytesSize / 1024 / 1024} MB`);
-
-        const mesh = new THREE.Mesh(geometry, Patch.material);
+        const material = Patch.material.clone();
+        const mesh = new THREE.Mesh(geometry, material);
         mesh.translateX(patchStart.x);
         mesh.translateY(patchStart.y);
         mesh.translateZ(patchStart.z);
-        return mesh;
+        this.gpuResources = { mesh, material };
+
+        this.container = new THREE.Object3D();
+        this.container.add(mesh);
+    }
+
+    public updateUniforms(): void {
+        if (this.gpuResources) {
+            this.gpuResources.material.uniforms.uAoStrength.value = +this.parameters.ao.enabled * this.parameters.ao.strength;
+            this.gpuResources.material.uniforms.uAoSpread.value = this.parameters.ao.spread;
+            this.gpuResources.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
+            this.gpuResources.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
+            this.gpuResources.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
+        }
+    }
+
+    public dispose(): void {
+        if (this.gpuResources) {
+            this.gpuResources.mesh.geometry.dispose();
+            this.gpuResources.material.dispose();
+            this.container.remove(this.gpuResources.mesh);
+            this.gpuResources = null;
+        }
     }
 }
 
 export {
+    EDisplayMode,
     Patch
 };
 
