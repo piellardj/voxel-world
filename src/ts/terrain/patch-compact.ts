@@ -274,12 +274,17 @@ class Patch {
         const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
         geometry.setAttribute(Patch.dataAttributeName, verticesDataBuffer);
         geometry.setDrawRange(0, iVertice);
+        geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
+        geometry.boundingSphere = new THREE.Sphere(
+            new THREE.Vector3().subVectors(patchEnd, patchStart).multiplyScalar(0.5),
+            Math.sqrt(patchSize.x * patchSize.x + patchSize.y * patchSize.y + patchSize.z * patchSize.z)
+        );
 
         const mesh = new THREE.Mesh(geometry, Patch.material);
         mesh.translateX(patchStart.x);
         mesh.translateY(patchStart.y);
         mesh.translateZ(patchStart.z);
-        mesh.frustumCulled = false;
+        
         return mesh;
     }
 }
