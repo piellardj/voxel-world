@@ -39,6 +39,7 @@ class Patch {
     private static readonly dataAttributeName = "aData";
 
     private static material: THREE.ShaderMaterial = new THREE.ShaderMaterial({
+        glslVersion: "300 es",
         uniforms: {
             uDisplayMode: { value: 0 },
             uTexture: { value: new THREE.TextureLoader().load("resources/materials.png") },
@@ -48,12 +49,12 @@ class Patch {
             uSmoothEdgeMethod: { value: 0 },
         },
         vertexShader: `
-        attribute uint ${Patch.dataAttributeName};
+        in uint ${Patch.dataAttributeName};
 
-        varying vec2 vUv;
-        varying vec2 vEdgeRoundness;
-        varying float vAo;
-        flat varying uint vData;
+        out vec2 vUv;
+        out vec2 vEdgeRoundness;
+        out float vAo;
+        flat out uint vData;
 
         void main(void) {
             vec3 worldPosition = vec3(uvec3(
@@ -96,10 +97,12 @@ class Patch {
         uniform uint uSmoothEdgeMethod;
         uniform uint uDisplayMode;
 
-        varying vec2 vUv;
-        varying vec2 vEdgeRoundness;
-        varying float vAo;
-        flat varying uint vData;
+        in vec2 vUv;
+        in vec2 vEdgeRoundness;
+        in float vAo;
+        flat in uint vData;
+
+        out vec4 fragColor;
 
         vec3 computeModelNormal() {
             uint faceId = ${encodedFaceId.glslDecode("vData")};
@@ -168,7 +171,7 @@ class Patch {
             light *= ao;
             color *= light;
 
-            gl_FragColor = vec4(color, 1);
+            fragColor = vec4(color, 1);
         }
         `,
     });
