@@ -2,7 +2,7 @@ import { ConstVec3 } from "../helpers/types";
 import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
-import { EDisplayMode, Patch } from "./patch";
+import { EDisplayMode, Patch } from "./patch/patch";
 
 class Terrain {
     public readonly container: THREE.Group;

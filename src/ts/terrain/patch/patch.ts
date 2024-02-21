@@ -1,7 +1,7 @@
-import { ConstVec3 } from "../helpers/types";
-import { THREE } from "../three-usage";
+import { ConstVec3 } from "../../helpers/types";
+import { THREE } from "../../three-usage";
+import { EVoxelType, IVoxelMap } from "../i-voxel-map";
 import * as Cube from "./cube";
-import { EVoxelType, IVoxelMap } from "./i-voxel-map";
 import { PackedUintFactory } from "./uint-packing";
 
 enum EMaterial {
@@ -203,13 +203,51 @@ class Patch {
 
     public constructor(map: IVoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3) {
         this.patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
-        if (this.patchSize.x > encodedPosX.maxValue || this.patchSize.y > encodedPosY.maxValue || this.patchSize.z > encodedPosZ.maxValue) {
-            throw new Error(`Patch is too big ${this.patchSize.x}x${this.patchSize.y}x${this.patchSize.z} (max is ${Patch.maxPatchSize})`);
+
+        const geometry = Patch.computeGeometry(map, patchStart, patchEnd);
+        if (!geometry) {
+            return;
+        }
+
+        const material = Patch.material.clone();
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.translateX(patchStart.x);
+        mesh.translateY(patchStart.y);
+        mesh.translateZ(patchStart.z);
+        this.gpuResources = { mesh, material };
+
+        this.container = new THREE.Object3D();
+        this.container.add(mesh);
+    }
+
+    public updateUniforms(): void {
+        if (this.gpuResources) {
+            this.gpuResources.material.uniforms.uAoStrength.value = +this.parameters.ao.enabled * this.parameters.ao.strength;
+            this.gpuResources.material.uniforms.uAoSpread.value = this.parameters.ao.spread;
+            this.gpuResources.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
+            this.gpuResources.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
+            this.gpuResources.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
+        }
+    }
+
+    public dispose(): void {
+        if (this.gpuResources) {
+            this.gpuResources.mesh.geometry.dispose();
+            this.gpuResources.material.dispose();
+            this.container.remove(this.gpuResources.mesh);
+            this.gpuResources = null;
+        }
+    }
+
+    private static computeGeometry(map: IVoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.BufferGeometry | null {
+        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
+        if (patchSize.x > encodedPosX.maxValue || patchSize.y > encodedPosY.maxValue || patchSize.z > encodedPosZ.maxValue) {
+            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${Patch.maxPatchSize})`);
         }
 
         const voxelsCountPerPatch = map.getMaxVoxelsCount(patchStart, patchEnd);
         if (voxelsCountPerPatch <= 0) {
-            return;
+            return null;
         };
 
         const maxFacesPerCube = 6;
@@ -291,35 +329,7 @@ class Patch {
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
         const boundingSphere = new THREE.Sphere();
         geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
-
-        const material = Patch.material.clone();
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.translateX(patchStart.x);
-        mesh.translateY(patchStart.y);
-        mesh.translateZ(patchStart.z);
-        this.gpuResources = { mesh, material };
-
-        this.container = new THREE.Object3D();
-        this.container.add(mesh);
-    }
-
-    public updateUniforms(): void {
-        if (this.gpuResources) {
-            this.gpuResources.material.uniforms.uAoStrength.value = +this.parameters.ao.enabled * this.parameters.ao.strength;
-            this.gpuResources.material.uniforms.uAoSpread.value = this.parameters.ao.spread;
-            this.gpuResources.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
-            this.gpuResources.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
-            this.gpuResources.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
-        }
-    }
-
-    public dispose(): void {
-        if (this.gpuResources) {
-            this.gpuResources.mesh.geometry.dispose();
-            this.gpuResources.material.dispose();
-            this.container.remove(this.gpuResources.mesh);
-            this.gpuResources = null;
-        }
+        return geometry;
     }
 }
 

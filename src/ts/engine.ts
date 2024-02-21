@@ -2,11 +2,11 @@ import { GUI } from "dat.gui";
 import { Debouncer } from "./helpers/debouncer";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
-import { EDisplayMode, Patch } from "./terrain/patch";
-import { Terrain } from "./terrain/terrain";
-import { OrbitControls, Stats, THREE } from "./three-usage";
 import { getUrlNumber } from "./helpers/url-param";
 import { VoxelMap } from "./terrain/generation/voxel-map";
+import { EDisplayMode, Patch } from "./terrain/patch/patch";
+import { Terrain } from "./terrain/terrain";
+import { OrbitControls, Stats, THREE } from "./three-usage";
 
 
 class Engine {
