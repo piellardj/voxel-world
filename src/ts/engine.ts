@@ -2,7 +2,7 @@ import { GUI } from "dat.gui";
 import { Debouncer } from "./helpers/debouncer";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
-import { EDisplayMode } from "./terrain/patch-compact";
+import { EDisplayMode, Patch } from "./terrain/patch-compact";
 import { Terrain } from "./terrain/terrain";
 import { OrbitControls, Stats, THREE } from "./three-usage";
 
@@ -57,7 +57,7 @@ class Engine {
 
         this.scene = new THREE.Scene();
         this.terrain = new Terrain();
-        this.scene.add(this.terrain.group);
+        this.scene.add(this.terrain.container);
         this.scene.add(new THREE.AxesHelper(20));
         computeGeometryStats(this.scene);
 
@@ -65,21 +65,21 @@ class Engine {
         {
             const folder = this.gui.addFolder("Voxels");
             folder.open();
-            folder.add(Terrain.parameters.voxels, "displayMode", { texture: EDisplayMode.TEXTURES, normals: EDisplayMode.NORMALS, grey: EDisplayMode.GREY });
+            folder.add(this.terrain.parameters.voxels, "displayMode", { texture: EDisplayMode.TEXTURES, normals: EDisplayMode.NORMALS, grey: EDisplayMode.GREY });
         }
         {
             const folder = this.gui.addFolder("Ambient occlusion");
             folder.open();
-            folder.add(Terrain.parameters.ao, "enabled");
-            folder.add(Terrain.parameters.ao, "strength", 0, 1);
-            folder.add(Terrain.parameters.ao, "spread", 0, 1);
+            folder.add(this.terrain.parameters.ao, "enabled");
+            folder.add(this.terrain.parameters.ao, "strength", 0, 1);
+            folder.add(this.terrain.parameters.ao, "spread", 0, 1);
         }
         {
             const folder = this.gui.addFolder("Smooth edges");
             folder.open();
-            folder.add(Terrain.parameters.smoothEdges, "enabled");
-            folder.add(Terrain.parameters.smoothEdges, "radius", 0, Terrain.parameters.smoothEdges.maxRadius);
-            folder.add(Terrain.parameters.smoothEdges, "quality", [0, 1, 2]);
+            folder.add(this.terrain.parameters.smoothEdges, "enabled");
+            folder.add(this.terrain.parameters.smoothEdges, "radius", 0, Patch.maxSmoothEdgeRadius);
+            folder.add(this.terrain.parameters.smoothEdges, "quality", [0, 1, 2]);
         }
     }
 
@@ -103,7 +103,7 @@ class Engine {
     }
 
     private render(): void {
-        Terrain.updateUniforms();
+        this.terrain.updateUniforms();
         this.renderer.render(this.scene, this.camera);
     }
 }

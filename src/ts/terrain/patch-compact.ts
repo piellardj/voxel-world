@@ -34,25 +34,9 @@ enum EDisplayMode {
 }
 
 class Patch {
-    public static readonly maxPatchSize: number = encodedPosX.maxValue;
-    public static readonly dataAttributeName: string = "aData";
-
-    public static readonly parameters = {
-        voxels: {
-            displayMode: EDisplayMode.TEXTURES,
-        },
-        smoothEdges: {
-            enabled: true,
-            radius: 0.1,
-            maxRadius: 0.3, // is constant
-            quality: 2,
-        },
-        ao: {
-            enabled: true,
-            strength: 0.4,
-            spread: 0.85,
-        },
-    };
+    public static readonly maxPatchSize = new THREE.Vector3(encodedPosX.maxValue, encodedPosY.maxValue, encodedPosZ.maxValue);
+    public static readonly maxSmoothEdgeRadius = 0.3;
+    private static readonly dataAttributeName = "aData";
 
     private static material: THREE.ShaderMaterial = new THREE.ShaderMaterial({
         uniforms: {
@@ -131,7 +115,7 @@ class Patch {
             
             vec3 localNormal;
     
-            vec2 edgeRoundness = step(${Patch.parameters.smoothEdges.maxRadius.toFixed(2)}, vEdgeRoundness);
+            vec2 edgeRoundness = step(${Patch.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
             if (uSmoothEdgeMethod == 0u) {
                 vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
                 vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
@@ -189,15 +173,31 @@ class Patch {
         `,
     });
 
-    public static updateUniforms(): void {
-        Patch.material.uniforms.uAoStrength.value = +Patch.parameters.ao.enabled * Patch.parameters.ao.strength;
-        Patch.material.uniforms.uAoSpread.value = Patch.parameters.ao.spread;
-        Patch.material.uniforms.uSmoothEdgeRadius.value = +Patch.parameters.smoothEdges.enabled * Patch.parameters.smoothEdges.radius;
-        Patch.material.uniforms.uSmoothEdgeMethod.value = Patch.parameters.smoothEdges.quality;
-        Patch.material.uniforms.uDisplayMode.value = Patch.parameters.voxels.displayMode;
-    }
+    public readonly container: THREE.Object3D;
 
-    public static buildPatchMesh(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.Mesh {
+    public readonly parameters = {
+        voxels: {
+            displayMode: EDisplayMode.TEXTURES,
+        },
+        smoothEdges: {
+            enabled: true,
+            radius: 0.1,
+            quality: 2,
+        },
+        ao: {
+            enabled: true,
+            strength: 0.4,
+            spread: 0.85,
+        },
+    };
+
+
+    private gpuResources: {
+        readonly mesh: THREE.Mesh;
+        readonly material: THREE.ShaderMaterial;
+    } | null;
+
+    public constructor(map: VoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3) {
         const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
         if (patchSize.x > encodedPosX.maxValue || patchSize.y > encodedPosY.maxValue || patchSize.z > encodedPosZ.maxValue) {
             throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${Patch.maxPatchSize})`);
@@ -288,12 +288,34 @@ class Patch {
             Math.sqrt(patchSize.x * patchSize.x + patchSize.y * patchSize.y + patchSize.z * patchSize.z)
         );
 
-        const mesh = new THREE.Mesh(geometry, Patch.material);
+        const material = Patch.material.clone();
+        const mesh = new THREE.Mesh(geometry, material);
         mesh.translateX(patchStart.x);
         mesh.translateY(patchStart.y);
         mesh.translateZ(patchStart.z);
-        
-        return mesh;
+        this.gpuResources = { mesh, material };
+
+        this.container = new THREE.Object3D();
+        this.container.add(mesh);
+    }
+
+    public updateUniforms(): void {
+        if (this.gpuResources) {
+            this.gpuResources.material.uniforms.uAoStrength.value = +this.parameters.ao.enabled * this.parameters.ao.strength;
+            this.gpuResources.material.uniforms.uAoSpread.value = this.parameters.ao.spread;
+            this.gpuResources.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
+            this.gpuResources.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
+            this.gpuResources.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
+        }
+    }
+
+    public dispose(): void {
+        if (this.gpuResources) {
+            this.gpuResources.mesh.geometry.dispose();
+            this.gpuResources.material.dispose();
+            this.container.remove(this.gpuResources.mesh);
+            this.gpuResources = null;
+        }
     }
 }
 
