@@ -75,13 +75,15 @@ class Patch {
             ));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     
-            const vec2 uvs[4] = vec2[](
+            const vec2 uvs[] = vec2[](
                 vec2(0,0),
+                vec2(1,0),
+                vec2(0,1),
                 vec2(0,1),
                 vec2(1,0),
                 vec2(1,1)
             );
-            int faceVertexId = gl_VertexID % 4;
+            int faceVertexId = gl_VertexID % 6;
             vUv = uvs[faceVertexId];
 
             const vec2 edgeRoundness[] = vec2[](
@@ -194,7 +196,10 @@ class Patch {
         }
         const voxelsCountPerPatch = patchSize.x * patchSize.z;
 
-        const encodedVerticesAndNormals = new Uint32Array(voxelsCountPerPatch * 6 * 4 * 1);
+        const maxFacesPerCube = 6;
+        const verticesPerFace = 6;
+        const uint32PerVertex = 1;
+        const verticesData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * verticesPerFace * uint32PerVertex);
 
         let iVertice = 0;
         for (let iX = 0; iX < patchSize.x; iX++) {
@@ -208,6 +213,7 @@ class Patch {
                 const voxelY = voxel.y;
                 const iY = voxelY - patchStart.y;
 
+                const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
                 for (const face of Object.values(Cube.faces)) {
                     if (map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
                         // this face will be hidden -> skip it
@@ -229,7 +235,7 @@ class Patch {
                         throw new Error("Unknown material");
                     }
 
-                    for (const faceVertex of face.vertices) {
+                    face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
                         let ao = 0;
                         const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
                         if (a && b) {
@@ -248,34 +254,26 @@ class Patch {
                                 roundnessY &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
                             }
                         }
-                        encodedVerticesAndNormals[iVertice++] = encodeData(
+                        faceVerticesData[faceVertexIndex] = encodeData(
                             faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
                             face.id,
                             [roundnessX, roundnessY],
                             faceMaterial,
                             ao,
                         );
+                    });
+
+                    for (const index of Cube.faceIndices) {
+                        verticesData[iVertice++] = faceVerticesData[index];
                     }
                 }
             }
         }
 
-        const facesCount = iVertice / 4;
-        const indices: number[] = new Array(facesCount * 6);
-        for (let iFace = 0; iFace < facesCount; iFace++) {
-            const faceFirstVertexIndex = iFace * 4;
-            for (let iFaceIndex = 0; iFaceIndex < 6; iFaceIndex++) {
-                indices[6 * iFace + iFaceIndex] = faceFirstVertexIndex + Cube.faceIndices[iFaceIndex];
-            }
-        }
-
         const geometry = new THREE.BufferGeometry();
-        const encodedPositionAndNormalCodeBuffer = new THREE.Uint32BufferAttribute(encodedVerticesAndNormals.subarray(0, iVertice), 1, false);
-        geometry.setAttribute(Patch.dataAttributeName, encodedPositionAndNormalCodeBuffer);
-        geometry.setIndex(indices);
-
-        // const totalBytesSize = encodedPositionAndNormalCodeBuffer.array.byteLength + iIndex * Uint32Array.BYTES_PER_ELEMENT;
-        // console.log(`Patch bytes size: ${totalBytesSize / 1024 / 1024} MB`);
+        const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
+        geometry.setAttribute(Patch.dataAttributeName, verticesDataBuffer);
+        geometry.setDrawRange(0, iVertice);
 
         const mesh = new THREE.Mesh(geometry, Patch.material);
         mesh.translateX(patchStart.x);
