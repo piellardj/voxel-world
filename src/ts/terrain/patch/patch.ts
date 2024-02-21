@@ -54,8 +54,9 @@ class Patch {
 
         out vec2 vUv;
         out vec2 vEdgeRoundness;
-        out float vAo;
+        flat out vec3 vWorldFaceNormal;
         flat out uint vData;
+        out float vAo;
 
         void main(void) {
             vec3 worldPosition = vec3(uvec3(
@@ -65,6 +66,12 @@ class Patch {
             ));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
     
+            const vec3 modelFaceNormals[] = vec3[](
+                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
+            );
+            uint faceId = ${encodedFaceId.glslDecode(Patch.dataAttributeName)};
+            vWorldFaceNormal = modelFaceNormals[faceId];
+
             const vec2 uvs[] = vec2[](
                 vec2(0,0),
                 vec2(1,0),
@@ -100,21 +107,17 @@ class Patch {
 
         in vec2 vUv;
         in vec2 vEdgeRoundness;
-        in float vAo;
+        flat in vec3 vWorldFaceNormal;
         flat in uint vData;
+        in float vAo;
 
         out vec4 fragColor;
 
         vec3 computeModelNormal() {
             uint faceId = ${encodedFaceId.glslDecode("vData")};
 
-            const vec3 modelFaceNormals[] = vec3[](
-                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
-            );
-            vec3 modelFaceNormal = modelFaceNormals[faceId];
-
             if (uSmoothEdgeRadius <= 0.0) {
-                return modelFaceNormal;
+                return vWorldFaceNormal;
             }
             
             vec3 localNormal;
@@ -146,7 +149,7 @@ class Patch {
             vec3 uvRight = uvRights[faceId];
 
 
-            return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * modelFaceNormal;
+            return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * vWorldFaceNormal;
         }
 
         void main(void) {

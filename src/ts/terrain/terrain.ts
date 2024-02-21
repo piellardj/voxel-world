@@ -81,6 +81,7 @@ class Terrain {
     public dispose(): void {
         for (const patch of this.patches) {
             patch.dispose();
+            this.container.clear();
         }
         this.patches = [];
     }
