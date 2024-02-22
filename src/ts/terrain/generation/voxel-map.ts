@@ -6,11 +6,17 @@ import { IVoxel, IVoxelMap, IVoxelMaterial } from '../i-voxel-map';
 enum EVoxelType {
     ROCK,
     GRASS,
+    SNOW,
+    WATER,
+    SAND,
 }
 
 const voxelMaterials: Record<EVoxelType, IVoxelMaterial> = [
     { color: new THREE.Color("#ABABAB") },
     { color: new THREE.Color("#00B920") },
+    { color: new THREE.Color("#E5E5E5") },
+    { color: new THREE.Color("#0055E2") },
+    { color: new THREE.Color("#DCBE28") },
 ];
 
 type StoredVoxel = {
@@ -33,9 +39,22 @@ class VoxelMap implements IVoxelMap {
                 const yNoise = 0.5 + 0.5 * noise2D(iX / 50, iZ / 50);
                 const iY = Math.floor(yNoise * this.size.y);
                 const id = this.buildId(iX, iZ);
+
+                let type: EVoxelType;
+                if (iY < 0.10 * altitude) {
+                    type = EVoxelType.WATER;
+                } else if (iY < 0.3 * altitude) {
+                    type = EVoxelType.SAND;
+                } else if (iY < 0.75 * altitude) {
+                    type = EVoxelType.GRASS;
+                } else if (iY < 0.85 * altitude) {
+                    type = EVoxelType.ROCK;
+                } else {
+                    type = EVoxelType.SNOW;
+                }
                 voxels[id] = {
                     y: iY,
-                    type: (iY > 0.25 * altitude) ? EVoxelType.GRASS : EVoxelType.ROCK,
+                    type,
                 };
             }
         }
