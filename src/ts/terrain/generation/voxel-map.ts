@@ -1,7 +1,12 @@
 import { createNoise2D } from 'simplex-noise';
 import { ConstVec3 } from '../../helpers/types';
 import { THREE } from "../../three-usage";
-import { EVoxelType, IVoxelMap, Voxel } from '../i-voxel-map';
+import { IVoxelMap, Voxel } from '../i-voxel-map';
+
+enum EVoxelType {
+    ROCK,
+    GRASS,
+}
 
 type StoredVoxel = {
     readonly y: number;
@@ -32,6 +37,10 @@ class VoxelMap implements IVoxelMap {
         this.voxels = voxels;
 
         console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels).`);
+    }
+
+    public getVoxelTypesCount(): number {
+        return Object.values(EVoxelType).length;
     }
 
     public getMaxVoxelsCount(from: ConstVec3, to: ConstVec3): number {

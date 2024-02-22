@@ -181,6 +181,12 @@ class PatchFactory {
 
     public constructor(map: IVoxelMap) {
         this.map = map;
+
+        const voxelTypesCount = this.map.getVoxelTypesCount();
+        const maxVoxelTypesSupported = this.vertexDataEncoder.voxelType.maxValue + 1;
+        if (voxelTypesCount > maxVoxelTypesSupported) {
+            throw new Error(`A map cannot have more than ${maxVoxelTypesSupported} voxel types (received ${voxelTypesCount}).`);
+        }
     }
 
     public buildPatch(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Patch | null {
