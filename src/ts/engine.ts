@@ -4,7 +4,8 @@ import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
 import { getUrlNumber } from "./helpers/url-param";
 import { VoxelMap } from "./terrain/generation/voxel-map";
-import { EDisplayMode, Patch } from "./terrain/patch/patch";
+import { PatchFactory } from "./terrain/patch/factory/factory";
+import { EDisplayMode } from "./terrain/patch/patch";
 import { Terrain } from "./terrain/terrain";
 import { OrbitControls, Stats, THREE } from "./three-usage";
 
@@ -91,7 +92,7 @@ class Engine {
             const folder = this.gui.addFolder("Smooth edges");
             folder.open();
             folder.add(this.terrain.parameters.smoothEdges, "enabled");
-            folder.add(this.terrain.parameters.smoothEdges, "radius", 0, Patch.maxSmoothEdgeRadius);
+            folder.add(this.terrain.parameters.smoothEdges, "radius", 0, PatchFactory.maxSmoothEdgeRadius);
             folder.add(this.terrain.parameters.smoothEdges, "quality", [0, 1, 2]);
         }
     }

@@ -2,6 +2,7 @@ import { ConstVec3 } from "../helpers/types";
 import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
+import { PatchFactory } from "./patch/factory/factory";
 import { EDisplayMode, Patch } from "./patch/patch";
 
 class Terrain {
@@ -27,11 +28,15 @@ class Terrain {
         },
     };
 
+    private readonly patchFactory: PatchFactory;
     private patches: Patch[] = [];
+
     public constructor(map: IVoxelMap) {
         this.container = new THREE.Group();
 
-        const patchSize = Terrain.computePatchSize();
+        this.patchFactory = new PatchFactory(map);
+
+        const patchSize = this.computePatchSize();
         console.log(`Using max patch size ${patchSize.x}x${patchSize.y}x${patchSize.z}.`);
 
         const patchStart = new THREE.Vector3();
@@ -45,10 +50,12 @@ class Terrain {
                     );
 
                     const startTimestamp = performance.now();
-                    const patch = new Patch(map, patchStart, patchEnd);
-                    console.log(`Generated patch of size ${patch.patchSize.x}x${patch.patchSize.y}x${patch.patchSize.z} in ${(performance.now() - startTimestamp).toFixed(1)} ms.`);
-                    this.patches.push(patch);
-                    this.container.add(patch.container);
+                    const patch = this.patchFactory.buildPatch(patchStart, patchEnd);
+                    if (patch) {
+                        console.log(`Generated patch of size ${patch.patchSize.x}x${patch.patchSize.y}x${patch.patchSize.z} in ${(performance.now() - startTimestamp).toFixed(1)} ms.`);
+                        this.patches.push(patch);
+                        this.container.add(patch.container);
+                    }
                 }
             }
         }
@@ -93,8 +100,8 @@ class Terrain {
         this.patches = [];
     }
 
-    private static computePatchSize(): ConstVec3 {
-        const patchSize = Patch.maxPatchSize.clone();
+    private computePatchSize(): ConstVec3 {
+        const patchSize = this.patchFactory.maxPatchSize.clone();
         const patchSizeFromUrl = tryGetUrlNumber("patchsize");
         if (patchSizeFromUrl !== null) {
             patchSize.x = Math.min(patchSize.x, patchSizeFromUrl);
