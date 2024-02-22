@@ -1,12 +1,17 @@
 import { createNoise2D } from 'simplex-noise';
 import { ConstVec3 } from '../../helpers/types';
 import { THREE } from "../../three-usage";
-import { IVoxelMap, Voxel } from '../i-voxel-map';
+import { IVoxel, IVoxelMap, IVoxelMaterial } from '../i-voxel-map';
 
 enum EVoxelType {
     ROCK,
     GRASS,
 }
+
+const voxelMaterials: Record<EVoxelType, IVoxelMaterial> = [
+    { color: new THREE.Color("#ABABAB") },
+    { color: new THREE.Color("#00B920") },
+];
 
 type StoredVoxel = {
     readonly y: number;
@@ -39,8 +44,8 @@ class VoxelMap implements IVoxelMap {
         console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels).`);
     }
 
-    public getVoxelTypesCount(): number {
-        return Object.values(EVoxelType).length;
+    getAllVoxelMaterials(): IVoxelMaterial[] {
+        return Object.values(voxelMaterials);
     }
 
     public getMaxVoxelsCount(from: ConstVec3, to: ConstVec3): number {
@@ -53,7 +58,7 @@ class VoxelMap implements IVoxelMap {
         return (toX - fromX) * (toZ - fromZ);
     }
 
-    public *iterateOnVoxels(from: ConstVec3, to: ConstVec3): Generator<Voxel> {
+    public *iterateOnVoxels(from: ConstVec3, to: ConstVec3): Generator<IVoxel> {
         if (to.x < from.x || to.y < from.y || to.z < from.z) {
             throw new Error();
         }
@@ -67,7 +72,7 @@ class VoxelMap implements IVoxelMap {
                     if (from.y <= position.y && position.y < to.y) {
                         yield {
                             position,
-                            type: voxel.type
+                            typeId: voxel.type
                         };
                     }
                 }

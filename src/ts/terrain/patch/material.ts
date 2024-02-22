@@ -11,7 +11,7 @@ enum EDisplayMode {
 
 type PatchMaterialUniforms = {
     readonly uDisplayMode: { value: EDisplayMode };
-    readonly uTexture: { value: THREE.Texture };
+    readonly uTexture: { value: THREE.Texture | null };
     readonly uAoStrength: { value: number };
     readonly uAoSpread: { value: number };
     readonly uSmoothEdgeRadius: { value: number };
