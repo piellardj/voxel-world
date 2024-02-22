@@ -25,7 +25,7 @@ class VoxelMap implements IVoxelMap {
                 const id = this.buildId(iX, iZ);
                 voxels[id] = {
                     y: iY,
-                    type: (iY > 0.25 * altitude) ? EVoxelType.DIRT : EVoxelType.ROCK,
+                    type: (iY > 0.25 * altitude) ? EVoxelType.GRASS : EVoxelType.ROCK,
                 };
             }
         }

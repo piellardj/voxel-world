@@ -1,6 +1,6 @@
 import { THREE } from "../../../three-usage";
-import { EVoxelType, IVoxelMap } from "../../i-voxel-map";
-import { EDisplayMode, EMaterial, PatchMaterial, PatchMaterialUniforms } from "../material";
+import { IVoxelMap } from "../../i-voxel-map";
+import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../material";
 import { Patch } from "../patch";
 import * as Cube from "./cube";
 import { VertexDataEncoder } from "./vertex-data-encoder";
@@ -8,6 +8,7 @@ import { VertexDataEncoder } from "./vertex-data-encoder";
 class PatchFactory {
     public static readonly maxSmoothEdgeRadius = 0.3;
     private static readonly dataAttributeName = "aData";
+    private static readonly faceTextureSize = 8;
 
     private readonly vertexDataEncoder = new VertexDataEncoder();
 
@@ -97,9 +98,7 @@ class PatchFactory {
 
         out vec4 fragColor;
 
-        vec3 computeModelNormal() {
-            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode("vData")};
-
+        vec3 computeModelNormal(const uint faceId) {
             if (uSmoothEdgeRadius <= 0.0) {
                 return vWorldFaceNormal;
             }
@@ -137,19 +136,29 @@ class PatchFactory {
         }
 
         void main(void) {
-            const ivec2 materials[] = ivec2[](
-                ivec2(0,0),
-                ivec2(8,0),
-                ivec2(0,8),
-                ivec2(8,8)
-            );
-            ivec2 material = materials[${this.vertexDataEncoder.material.glslDecode("vData")}];
-
-            vec3 modelFaceNormal = computeModelNormal();
+            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode("vData")};
+            
+            vec3 modelFaceNormal = computeModelNormal(faceId);
 
             vec3 color = vec3(0.75);
             if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
-                ivec2 texelCoords = clamp(ivec2(vUv * 8.0), ivec2(0), ivec2(7)) + material;
+                uint material = ${this.vertexDataEncoder.voxelType.glslDecode("vData")};
+
+                const int textureYs[] = int[](
+                    ${Cube.facesById.map(face => {
+            if (face.type === "up") {
+                return 2;
+            } else if (face.type === "down") {
+                return 0;
+            }
+            return 1;
+        }).join(",\n")}
+                    );
+                int textureY = textureYs[faceId];
+                
+                ivec2 texelCoords = ${PatchFactory.faceTextureSize} * ivec2(material, textureY)
+                    + clamp(ivec2(vUv * ${PatchFactory.faceTextureSize.toFixed(1)}), ivec2(0), ivec2(${PatchFactory.faceTextureSize - 1}));
+
                 color = texelFetch(uTexture, texelCoords, 0).rgb;
             } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
                 color = 0.5 + 0.5 * modelFaceNormal;
@@ -226,21 +235,6 @@ class PatchFactory {
                     continue;
                 }
 
-                let faceMaterial: EMaterial;
-                if (voxel.type === EVoxelType.ROCK) {
-                    faceMaterial = EMaterial.ROCK;
-                } else if (voxel.type === EVoxelType.DIRT) {
-                    if (face.type === "up") {
-                        faceMaterial = EMaterial.GRASS;
-                    } else if (face.type === "down") {
-                        faceMaterial = EMaterial.SAND;
-                    } else {
-                        faceMaterial = EMaterial.GRASS_SAND;
-                    }
-                } else {
-                    throw new Error("Unknown material");
-                }
-
                 face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
                     let ao = 0;
                     const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
@@ -263,7 +257,7 @@ class PatchFactory {
                     faceVerticesData[faceVertexIndex] = this.vertexDataEncoder.encode(
                         faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
                         face.id,
-                        faceMaterial,
+                        voxel.type,
                         ao,
                         [roundnessX, roundnessY],
                     );

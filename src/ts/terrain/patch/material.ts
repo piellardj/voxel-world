@@ -1,8 +1,6 @@
 enum EMaterial {
-    ROCK = 2,
-    SAND = 3,
+    ROCK = 0,
     GRASS = 1,
-    GRASS_SAND = 0,
 }
 
 enum EDisplayMode {

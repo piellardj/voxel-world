@@ -1,6 +1,6 @@
 enum EVoxelType {
-    DIRT = 0,
-    ROCK = 1,
+    ROCK = 0,
+    GRASS = 1,
 }
 
 type Uint3 = {
