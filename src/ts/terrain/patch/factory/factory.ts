@@ -194,6 +194,10 @@ class PatchFactory {
         return new Patch(patchSize, mesh, material);
     }
 
+    public dispose(): void {
+        this.materialTemplate.dispose();
+    }
+
     private computeGeometry(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.BufferGeometry | null {
         const voxelsCountPerPatch = this.map.getMaxVoxelsCount(patchStart, patchEnd);
         if (voxelsCountPerPatch <= 0) {
