@@ -1,6 +1,6 @@
 import { ConstVec3 } from "../../helpers/types";
 import { THREE } from "../../three-usage";
-import { EDisplayMode } from "./parameters";
+import { EDisplayMode, PatchMaterial } from "./material";
 
 class Patch {
     public readonly container = new THREE.Object3D();
@@ -28,10 +28,10 @@ class Patch {
     public readonly patchSize: ConstVec3;
     private gpuResources: {
         readonly mesh: THREE.Mesh;
-        readonly material: THREE.ShaderMaterial;
+        readonly material: PatchMaterial;
     } | null = null;
 
-    public constructor(patchSize: ConstVec3, mesh: THREE.Mesh, material: THREE.ShaderMaterial) {
+    public constructor(patchSize: ConstVec3, mesh: THREE.Mesh, material: PatchMaterial) {
         this.patchSize = patchSize;
         this.gpuResources = { mesh, material };
 

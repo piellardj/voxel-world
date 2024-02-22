@@ -1,6 +1,6 @@
 import { THREE } from "../../../three-usage";
 import { EVoxelType, IVoxelMap } from "../../i-voxel-map";
-import { EDisplayMode, EMaterial } from "../parameters";
+import { EDisplayMode, EMaterial, PatchMaterial, PatchMaterialUniforms } from "../material";
 import { Patch } from "../patch";
 import * as Cube from "./cube";
 import { VertexDataEncoder } from "./vertex-data-encoder";
@@ -17,18 +17,20 @@ class PatchFactory {
         this.vertexDataEncoder.posZ.maxValue,
     );
 
-    private readonly material = new THREE.ShaderMaterial({
+    private readonly uniformsTemplate: PatchMaterialUniforms = {
+        uDisplayMode: { value: 0 },
+        uTexture: { value: new THREE.TextureLoader().load("resources/materials.png") },
+        uAoStrength: { value: 0 },
+        uAoSpread: { value: 0 },
+        uSmoothEdgeRadius: { value: 0 },
+        uSmoothEdgeMethod: { value: 0 },
+        uAmbient: { value: 0 },
+        uDiffuse: { value: 0 },
+    };
+
+    private readonly materialTemplate = new THREE.ShaderMaterial({
         glslVersion: "300 es",
-        uniforms: {
-            uDisplayMode: { value: 0 },
-            uTexture: { value: new THREE.TextureLoader().load("resources/materials.png") },
-            uAoStrength: { value: 0 },
-            uAoSpread: { value: 0 },
-            uSmoothEdgeRadius: { value: 0 },
-            uSmoothEdgeMethod: { value: 0 },
-            uAmbient: { value: 0 },
-            uDiffuse: { value: 0 },
-        },
+        uniforms: this.uniformsTemplate,
         vertexShader: `
         in uint ${PatchFactory.dataAttributeName};
 
@@ -164,7 +166,7 @@ class PatchFactory {
             fragColor = vec4(color, 1);
         }
         `,
-    });
+    }) as unknown as PatchMaterial;
 
     private readonly map: IVoxelMap;
 
@@ -183,7 +185,7 @@ class PatchFactory {
             throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${this.maxPatchSize.x}x${this.maxPatchSize.y}x${this.maxPatchSize.z})`);
         }
 
-        const material = this.material.clone();
+        const material = this.materialTemplate.clone();
         const mesh = new THREE.Mesh(geometry, material);
         mesh.frustumCulled = false;
         mesh.translateX(patchStart.x);
@@ -282,6 +284,7 @@ class PatchFactory {
 }
 
 export {
-    PatchFactory
+    PatchFactory,
+    type PatchMaterial
 };
 
