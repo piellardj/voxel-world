@@ -1,31 +1,14 @@
 import { ConstVec3 } from "../../helpers/types";
 import { THREE } from "../../three-usage";
 import { EVoxelType, IVoxelMap } from "../i-voxel-map";
-import * as Cube from "./cube";
-import { PackedUintFactory } from "./uint-packing";
+import * as Cube from "./factory/cube";
+import { VertexDataEncoder } from "./factory/vertex-data-encoder";
 
 enum EMaterial {
     ROCK = 2,
     SAND = 3,
     GRASS = 1,
     GRASS_SAND = 0,
-}
-
-const packedUintFactory = new PackedUintFactory();
-const encodedPosX = packedUintFactory.encodePart(128);
-const encodedPosY = packedUintFactory.encodePart(64);
-const encodedPosZ = packedUintFactory.encodePart(128);
-const encodedFaceId = packedUintFactory.encodePart(6);
-const encodedMaterial = packedUintFactory.encodePart(Object.keys(EMaterial).length);
-const encodedAo = packedUintFactory.encodePart(4);
-const encodedEdgeRoundness = packedUintFactory.encodePart(4);
-
-function encodeData(x: number, y: number, z: number, faceId: number, edgeRoundness: [boolean, boolean], materialCode: number, ao: number): number {
-    return encodedPosX.encode(x) + encodedPosY.encode(y) + encodedPosZ.encode(z)
-        + encodedFaceId.encode(faceId)
-        + encodedEdgeRoundness.encode(+edgeRoundness[0] + (+edgeRoundness[1] << 1))
-        + encodedMaterial.encode(materialCode)
-        + encodedAo.encode(ao);
 }
 
 enum EDisplayMode {
@@ -35,7 +18,12 @@ enum EDisplayMode {
 }
 
 class Patch {
-    public static readonly maxPatchSize = new THREE.Vector3(encodedPosX.maxValue, encodedPosY.maxValue, encodedPosZ.maxValue);
+    private static readonly vertexDataEncoder = new VertexDataEncoder();
+    public static readonly maxPatchSize = new THREE.Vector3(
+        Patch.vertexDataEncoder.posX.maxValue,
+        Patch.vertexDataEncoder.posY.maxValue,
+        Patch.vertexDataEncoder.posZ.maxValue,
+    );
     public static readonly maxSmoothEdgeRadius = 0.3;
     private static readonly dataAttributeName = "aData";
 
@@ -62,16 +50,16 @@ class Patch {
 
         void main(void) {
             vec3 worldPosition = vec3(uvec3(
-                ${encodedPosX.glslDecode(Patch.dataAttributeName)},
-                ${encodedPosY.glslDecode(Patch.dataAttributeName)},
-                ${encodedPosZ.glslDecode(Patch.dataAttributeName)}
+                ${Patch.vertexDataEncoder.posX.glslDecode(Patch.dataAttributeName)},
+                ${Patch.vertexDataEncoder.posY.glslDecode(Patch.dataAttributeName)},
+                ${Patch.vertexDataEncoder.posZ.glslDecode(Patch.dataAttributeName)}
             ));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
     
             const vec3 modelFaceNormals[] = vec3[](
                 ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
             );
-            uint faceId = ${encodedFaceId.glslDecode(Patch.dataAttributeName)};
+            uint faceId = ${Patch.vertexDataEncoder.faceId.glslDecode(Patch.dataAttributeName)};
             vWorldFaceNormal = modelFaceNormals[faceId];
 
             const vec2 uvs[] = vec2[](
@@ -91,10 +79,10 @@ class Patch {
                 vec2(0,1),
                 vec2(1,1)
             );
-            uint edgeRoundnessId = ${encodedEdgeRoundness.glslDecode(Patch.dataAttributeName)};
+            uint edgeRoundnessId = ${Patch.vertexDataEncoder.edgeRoundness.glslDecode(Patch.dataAttributeName)};
             vEdgeRoundness = edgeRoundness[edgeRoundnessId];
 
-            vAo = float(${encodedAo.glslDecode(Patch.dataAttributeName)}) / ${encodedAo.maxValue.toFixed(1)};
+            vAo = float(${Patch.vertexDataEncoder.ao.glslDecode(Patch.dataAttributeName)}) / ${Patch.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
             vData = ${Patch.dataAttributeName};
         }`,
@@ -118,7 +106,7 @@ class Patch {
         out vec4 fragColor;
 
         vec3 computeModelNormal() {
-            uint faceId = ${encodedFaceId.glslDecode("vData")};
+            uint faceId = ${Patch.vertexDataEncoder.faceId.glslDecode("vData")};
 
             if (uSmoothEdgeRadius <= 0.0) {
                 return vWorldFaceNormal;
@@ -163,7 +151,7 @@ class Patch {
                 ivec2(0,8),
                 ivec2(8,8)
             );
-            ivec2 material = materials[${encodedMaterial.glslDecode("vData")}];
+            ivec2 material = materials[${Patch.vertexDataEncoder.material.glslDecode("vData")}];
 
             vec3 modelFaceNormal = computeModelNormal();
 
@@ -259,7 +247,7 @@ class Patch {
 
     private static computeGeometry(map: IVoxelMap, patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.BufferGeometry | null {
         const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
-        if (patchSize.x > encodedPosX.maxValue || patchSize.y > encodedPosY.maxValue || patchSize.z > encodedPosZ.maxValue) {
+        if (patchSize.x > Patch.maxPatchSize.x || patchSize.y > Patch.maxPatchSize.y || patchSize.z > Patch.maxPatchSize.z) {
             throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${Patch.maxPatchSize})`);
         }
 
@@ -324,12 +312,12 @@ class Patch {
                             roundnessY &&= !map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
                         }
                     }
-                    faceVerticesData[faceVertexIndex] = encodeData(
+                    faceVerticesData[faceVertexIndex] = Patch.vertexDataEncoder.encode(
                         faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
                         face.id,
-                        [roundnessX, roundnessY],
                         faceMaterial,
                         ao,
+                        [roundnessX, roundnessY],
                     );
                 });
 
