@@ -5,7 +5,14 @@ import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
 import { PatchFactory } from "./patch/factory/factory";
 import { PatchFactoryInstanced } from "./patch/factory/instanced/factory-instanced";
+import { PatchFactorySplit } from "./patch/factory/split/factory";
 import { EDisplayMode, Patch } from "./patch/patch";
+
+enum EFactoryType {
+    MERGED = "merged",
+    INSTANCED = "instanced",
+    MERGED_SPLIT = "merged_split",
+};
 
 class Terrain {
     public readonly container: THREE.Group;
@@ -32,6 +39,7 @@ class Terrain {
 
     private readonly patchFactory: PatchFactory;
     private readonly patchFactoryInstanced: PatchFactoryInstanced;
+    private readonly patchFactorySplit: PatchFactorySplit;
 
     private readonly map: IVoxelMap;
 
@@ -40,6 +48,7 @@ class Terrain {
     public constructor(map: IVoxelMap) {
         this.patchFactory = new PatchFactory(map);
         this.patchFactoryInstanced = new PatchFactoryInstanced(map);
+        this.patchFactorySplit = new PatchFactorySplit(map);
 
         this.map = map;
 
@@ -58,10 +67,19 @@ class Terrain {
         }
     }
 
-    public computePatches(instanced: boolean): void {
-        const factory = instanced ? this.patchFactoryInstanced : this.patchFactory;
+    public computePatches(factoryType: EFactoryType): void {
+        let factory: PatchFactory | PatchFactoryInstanced | PatchFactorySplit;
+        if (factoryType === EFactoryType.MERGED) {
+            factory = this.patchFactory;
+        } else if (factoryType === EFactoryType.INSTANCED) {
+            factory = this.patchFactoryInstanced;
+        } else if (factoryType === EFactoryType.MERGED_SPLIT) {
+            factory = this.patchFactorySplit;
+        } else {
+            throw new Error();
+        }
 
-        const patchSize = Terrain.computePatchSize(factory);
+        const patchSize = Terrain.computePatchSize(factory.maxPatchSize);
         console.log(`Using max patch size ${patchSize.x}x${patchSize.y}x${patchSize.z}.`);
 
         const computationStart = new Timer();
@@ -120,8 +138,8 @@ class Terrain {
         this.patchFactoryInstanced.dispose();
     }
 
-    private static computePatchSize(factory: PatchFactory | PatchFactoryInstanced): ConstVec3 {
-        const patchSize = factory.maxPatchSize.clone();
+    private static computePatchSize(factoryMaxPatchSize: THREE.Vector3): ConstVec3 {
+        const patchSize = factoryMaxPatchSize.clone();
         const patchSizeFromUrl = tryGetUrlNumber("patchsize");
         if (patchSizeFromUrl !== null) {
             patchSize.x = Math.min(patchSize.x, patchSizeFromUrl);
@@ -136,6 +154,6 @@ class Terrain {
 }
 
 export {
-    Terrain
+    EFactoryType, Terrain
 };
 

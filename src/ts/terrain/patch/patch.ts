@@ -2,6 +2,11 @@ import { ConstVec3 } from "../../helpers/types";
 import { THREE } from "../../three-usage";
 import { EDisplayMode, PatchMaterial } from "./material";
 
+type PatchMesh = {
+    readonly mesh: THREE.Mesh;
+    readonly material: PatchMaterial;
+};
+
 class Patch {
     public readonly container = new THREE.Object3D();
 
@@ -27,35 +32,41 @@ class Patch {
 
     public readonly patchSize: ConstVec3;
     private gpuResources: {
-        readonly mesh: THREE.Mesh;
-        readonly material: PatchMaterial;
+        readonly patchMeshes: ReadonlyArray<PatchMesh>;
     } | null = null;
 
-    public constructor(patchSize: ConstVec3, mesh: THREE.Mesh, material: PatchMaterial) {
+    public constructor(patchSize: ConstVec3, patchMeshes: PatchMesh[]) {
         this.patchSize = patchSize;
-        this.gpuResources = { mesh, material };
+        this.gpuResources = { patchMeshes };
 
         this.container = new THREE.Object3D();
-        this.container.add(mesh);
+        for (const patchMesh of patchMeshes) {
+            this.container.add(patchMesh.mesh);
+        }
     }
 
     public updateUniforms(): void {
         if (this.gpuResources) {
-            this.gpuResources.material.uniforms.uAoStrength.value = +this.parameters.ao.enabled * this.parameters.ao.strength;
-            this.gpuResources.material.uniforms.uAoSpread.value = this.parameters.ao.spread;
-            this.gpuResources.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
-            this.gpuResources.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
-            this.gpuResources.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
-            this.gpuResources.material.uniforms.uAmbient.value = this.parameters.lighting.ambient;
-            this.gpuResources.material.uniforms.uDiffuse.value = this.parameters.lighting.diffuse;
+            for (const patchMesh of this.gpuResources.patchMeshes) {
+                patchMesh.material.uniforms.uAoStrength.value = +this.parameters.ao.enabled * this.parameters.ao.strength;
+                patchMesh.material.uniforms.uAoSpread.value = this.parameters.ao.spread;
+                patchMesh.material.uniforms.uSmoothEdgeRadius.value = +this.parameters.smoothEdges.enabled * this.parameters.smoothEdges.radius;
+                patchMesh.material.uniforms.uSmoothEdgeMethod.value = this.parameters.smoothEdges.quality;
+                patchMesh.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
+                patchMesh.material.uniforms.uAmbient.value = this.parameters.lighting.ambient;
+                patchMesh.material.uniforms.uDiffuse.value = this.parameters.lighting.diffuse;
+            }
         }
     }
 
     public dispose(): void {
         if (this.gpuResources) {
-            this.gpuResources.mesh.geometry.dispose();
-            this.gpuResources.material.dispose();
-            this.container.remove(this.gpuResources.mesh);
+            for (const patchMesh of this.gpuResources.patchMeshes) {
+                this.container.remove(patchMesh.mesh);
+                patchMesh.mesh.geometry.dispose();
+                patchMesh.material.dispose();
+            }
+
             this.gpuResources = null;
         }
     }

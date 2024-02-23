@@ -223,7 +223,7 @@ class PatchFactoryInstanced {
         mesh.translateX(patchStart.x);
         mesh.translateY(patchStart.y);
         mesh.translateZ(patchStart.z);
-        return new Patch(patchSize, mesh, material);
+        return new Patch(patchSize, [{ mesh, material }]);
     }
 
     public dispose(): void {

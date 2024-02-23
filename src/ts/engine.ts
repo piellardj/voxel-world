@@ -6,7 +6,7 @@ import { getUrlNumber } from "./helpers/url-param";
 import { VoxelMap } from "./terrain/generation/voxel-map";
 import { PatchFactory } from "./terrain/patch/factory/factory";
 import { EDisplayMode } from "./terrain/patch/patch";
-import { Terrain } from "./terrain/terrain";
+import { EFactoryType, Terrain } from "./terrain/terrain";
 import { OrbitControls, Stats, THREE } from "./three-usage";
 
 
@@ -21,7 +21,7 @@ class Engine {
     private readonly gui: GUI;
 
     private readonly parameters = {
-        instancedEngine: false,
+        factoryType: EFactoryType.MERGED_SPLIT,
     };
 
     public constructor() {
@@ -73,7 +73,7 @@ class Engine {
 
         const applyEngine = () => {
             this.terrain.clear();
-            this.terrain.computePatches(this.parameters.instancedEngine);
+            this.terrain.computePatches(this.parameters.factoryType);
             computeGeometryStats(this.scene);
         };
 
@@ -81,7 +81,7 @@ class Engine {
         {
             const folder = this.gui.addFolder("Engine");
             folder.open();
-            folder.add(this.parameters, "instancedEngine").onChange(applyEngine);
+            folder.add(this.parameters, "factoryType", { merged: EFactoryType.MERGED, instanced: EFactoryType.INSTANCED, merged_split: EFactoryType.MERGED_SPLIT }).onChange(applyEngine);
 
         }
         {

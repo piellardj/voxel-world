@@ -1,20 +1,20 @@
-import { THREE } from "../../../three-usage";
-import { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
-import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../material";
-import { Patch } from "../patch";
-import * as Cube from "./cube";
+import { THREE } from "../../../../three-usage";
+import { IVoxelMap, IVoxelMaterial } from "../../../i-voxel-map";
+import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../../material";
+import { Patch } from "../../patch";
+import * as Cube from "../cube";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
-class PatchFactory {
+class PatchFactorySplit {
     public static readonly maxSmoothEdgeRadius = 0.3;
     private static readonly dataAttributeName = "aData";
 
     private readonly vertexDataEncoder = new VertexDataEncoder();
 
     public readonly maxPatchSize = new THREE.Vector3(
-        this.vertexDataEncoder.posX.maxValue,
-        this.vertexDataEncoder.posY.maxValue,
-        this.vertexDataEncoder.posZ.maxValue,
+        this.vertexDataEncoder.voxelX.maxValue + 1,
+        this.vertexDataEncoder.voxelY.maxValue + 1,
+        this.vertexDataEncoder.voxelZ.maxValue + 1,
     );
 
     private readonly texture: THREE.Texture;
@@ -30,42 +30,51 @@ class PatchFactory {
         uDiffuse: { value: 0 },
     };
 
-    private readonly materialTemplate = new THREE.ShaderMaterial({
-        glslVersion: "300 es",
-        uniforms: this.uniformsTemplate,
-        vertexShader: `
-        in uint ${PatchFactory.dataAttributeName};
+    private readonly materialsTemplates: Record<Cube.FaceType, PatchMaterial> = {
+        up: this.buildPatchMaterial("up"),
+        down: this.buildPatchMaterial("down"),
+        left: this.buildPatchMaterial("left"),
+        right: this.buildPatchMaterial("right"),
+        front: this.buildPatchMaterial("front"),
+        back: this.buildPatchMaterial("back"),
+    };
+
+    private buildPatchMaterial(faceType: Cube.FaceType): PatchMaterial {
+        return new THREE.ShaderMaterial({
+            glslVersion: "300 es",
+            uniforms: this.uniformsTemplate,
+            vertexShader: `
+        in uint ${PatchFactorySplit.dataAttributeName};
 
         out vec2 vUv;
         out vec2 vEdgeRoundness;
-        flat out vec3 vWorldFaceNormal;
         flat out uint vData;
         out float vAo;
 
         void main(void) {
-            vec3 worldPosition = vec3(uvec3(
-                ${this.vertexDataEncoder.posX.glslDecode(PatchFactory.dataAttributeName)},
-                ${this.vertexDataEncoder.posY.glslDecode(PatchFactory.dataAttributeName)},
-                ${this.vertexDataEncoder.posZ.glslDecode(PatchFactory.dataAttributeName)}
-            ));
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
-    
-            const vec3 modelFaceNormals[] = vec3[](
-                ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
+            const uint vertexIds[] = uint[](${Cube.faceIndices.map(indice => `${indice}u`).join(", ")});
+            uint vertexId = vertexIds[gl_VertexID % 6];
+
+            uvec3 worldVoxelPosition = uvec3(
+                ${this.vertexDataEncoder.voxelX.glslDecode(PatchFactorySplit.dataAttributeName)},
+                ${this.vertexDataEncoder.voxelY.glslDecode(PatchFactorySplit.dataAttributeName)},
+                ${this.vertexDataEncoder.voxelZ.glslDecode(PatchFactorySplit.dataAttributeName)}
             );
-            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode(PatchFactory.dataAttributeName)};
-            vWorldFaceNormal = modelFaceNormals[faceId];
+
+            const uvec3 localVertexPositions[] = uvec3[](
+                ${Cube.faces[faceType].vertices.map(vertex => `uvec3(${vertex.vertex.x}, ${vertex.vertex.y}, ${vertex.vertex.z})`).join(",\n")}
+            );
+            uvec3 localVertexPosition = localVertexPositions[vertexId];
+            vec3 worldPosition = vec3(worldVoxelPosition + localVertexPosition);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
 
             const vec2 uvs[] = vec2[](
                 vec2(0,0),
-                vec2(1,0),
-                vec2(0,1),
                 vec2(0,1),
                 vec2(1,0),
                 vec2(1,1)
             );
-            int faceVertexId = gl_VertexID % 6;
-            vUv = uvs[faceVertexId];
+            vUv = uvs[vertexId];
 
             const vec2 edgeRoundness[] = vec2[](
                 vec2(0,0),
@@ -73,14 +82,14 @@ class PatchFactory {
                 vec2(0,1),
                 vec2(1,1)
             );
-            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactory.dataAttributeName)};
+            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactorySplit.dataAttributeName)};
             vEdgeRoundness = edgeRoundness[edgeRoundnessId];
 
-            vAo = float(${this.vertexDataEncoder.ao.glslDecode(PatchFactory.dataAttributeName)}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
+            vAo = float(${this.vertexDataEncoder.ao.glslDecode(PatchFactorySplit.dataAttributeName)}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
-            vData = ${PatchFactory.dataAttributeName};
+            vData = ${PatchFactorySplit.dataAttributeName};
         }`,
-        fragmentShader: `precision mediump float;
+            fragmentShader: `precision mediump float;
 
         uniform sampler2D uTexture;
         uniform float uAmbient;
@@ -93,20 +102,20 @@ class PatchFactory {
 
         in vec2 vUv;
         in vec2 vEdgeRoundness;
-        flat in vec3 vWorldFaceNormal;
         flat in uint vData;
         in float vAo;
 
         out vec4 fragColor;
 
-        vec3 computeModelNormal(const uint faceId) {
+        vec3 computeModelNormal() {
+            const vec3 worldFaceNormal = vec3(${Cube.faces[faceType].normal.x.toFixed(1)}, ${Cube.faces[faceType].normal.y.toFixed(1)}, ${Cube.faces[faceType].normal.z.toFixed(1)});
             if (uSmoothEdgeRadius <= 0.0) {
-                return vWorldFaceNormal;
+                return worldFaceNormal;
             }
             
             vec3 localNormal;
     
-            vec2 edgeRoundness = step(${PatchFactory.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
+            vec2 edgeRoundness = step(${PatchFactorySplit.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
             if (uSmoothEdgeMethod == 0u) {
                 vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
                 vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
@@ -122,23 +131,13 @@ class PatchFactory {
                 localNormal = normalize(vec3(distanceFromMargin, 1));
             }
 
-            const vec3 uvUps[] = vec3[](
-                ${Cube.facesById.map(face => `vec3(${face.uvUp.x},${face.uvUp.y},${face.uvUp.z})`).join(", ")}
-            );
-            vec3 uvUp = uvUps[faceId];
-
-            const vec3 uvRights[] = vec3[](
-                ${Cube.facesById.map(face => `vec3(${face.uvRight.x},${face.uvRight.y},${face.uvRight.z})`).join(", ")}
-            );
-            vec3 uvRight = uvRights[faceId];
-
-            return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * vWorldFaceNormal;
+            const vec3 uvUp = vec3(${Cube.faces[faceType].uvUp.x.toFixed(1)}, ${Cube.faces[faceType].uvUp.y.toFixed(1)}, ${Cube.faces[faceType].uvUp.z.toFixed(1)});
+            const vec3 uvRight = vec3(${Cube.faces[faceType].uvRight.x.toFixed(1)}, ${Cube.faces[faceType].uvRight.y.toFixed(1)}, ${Cube.faces[faceType].uvRight.z.toFixed(1)});
+            return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * worldFaceNormal;
         }
 
         void main(void) {
-            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode("vData")};
-            
-            vec3 modelFaceNormal = computeModelNormal(faceId);
+            vec3 modelFaceNormal = computeModelNormal();
 
             vec3 color = vec3(0.75);
             if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
@@ -157,10 +156,13 @@ class PatchFactory {
             light *= ao;
             color *= light;
 
+            // color = vec3(vUv, 0);
+
             fragColor = vec4(color, 1);
         }
         `,
-    }) as unknown as PatchMaterial;
+        }) as unknown as PatchMaterial;
+    }
 
     private readonly map: IVoxelMap;
 
@@ -190,42 +192,66 @@ class PatchFactory {
     }
 
     public buildPatch(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Patch | null {
-        const geometry = this.computeGeometry(patchStart, patchEnd);
-        if (!geometry) {
-            return null;
-        }
-
         const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
         if (patchSize.x > this.maxPatchSize.x || patchSize.y > this.maxPatchSize.y || patchSize.z > this.maxPatchSize.z) {
             throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${this.maxPatchSize.x}x${this.maxPatchSize.y}x${this.maxPatchSize.z})`);
         }
 
-        const material = this.materialTemplate.clone();
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.frustumCulled = false;
-        mesh.translateX(patchStart.x);
-        mesh.translateY(patchStart.y);
-        mesh.translateZ(patchStart.z);
-        return new Patch(patchSize, [{ mesh, material }]);
+        const geometries = this.computeGeometries(patchStart, patchEnd);
+        if (!geometries) {
+            return null;
+        }
+
+        return new Patch(patchSize, Object.entries(geometries).map(value => {
+            const faceType = value[0] as Cube.FaceType;
+            const geometry = value[1];
+            const material = this.materialsTemplates[faceType].clone();
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.frustumCulled = false;
+            mesh.translateX(patchStart.x);
+            mesh.translateY(patchStart.y);
+            mesh.translateZ(patchStart.z);
+            return {
+                mesh,
+                material,
+            };
+        }));
     }
 
     public dispose(): void {
-        this.materialTemplate.dispose();
+        for (const material of Object.values(this.materialsTemplates)) {
+            material.dispose();
+        }
         this.texture.dispose();
     }
 
-    private computeGeometry(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.BufferGeometry | null {
+    private computeGeometries(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Record<Cube.FaceType, THREE.BufferGeometry> | null {
         const voxelsCountPerPatch = this.map.getMaxVoxelsCount(patchStart, patchEnd);
         if (voxelsCountPerPatch <= 0) {
             return null;
         }
 
-        const maxFacesPerCube = 6;
         const verticesPerFace = 6;
         const uint32PerVertex = 1;
-        const verticesData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * verticesPerFace * uint32PerVertex);
 
-        let iVertice = 0;
+        const verticesData: Record<Cube.FaceType, Uint32Array> = {
+            up: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
+            down: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
+            left: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
+            right: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
+            front: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
+            back: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
+        };
+
+        let iVertice: Record<Cube.FaceType, number> = {
+            up: 0,
+            down: 0,
+            left: 0,
+            right: 0,
+            front: 0,
+            back: 0,
+        };
+
         for (const voxel of this.map.iterateOnVoxels(patchStart, patchEnd)) {
             const voxelX = voxel.position.x;
             const voxelY = voxel.position.y;
@@ -241,9 +267,6 @@ class PatchFactory {
                     // this face will be hidden -> skip it
                     continue;
                 }
-                // if (face.type !== "up") {
-                //     continue;
-                // }
 
                 face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
                     let ao = 0;
@@ -265,8 +288,7 @@ class PatchFactory {
                         }
                     }
                     faceVerticesData[faceVertexIndex] = this.vertexDataEncoder.encode(
-                        faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
-                        face.id,
+                        iX, iY, iZ,
                         voxel.typeId,
                         ao,
                         [roundnessX, roundnessY],
@@ -274,25 +296,42 @@ class PatchFactory {
                 });
 
                 for (const index of Cube.faceIndices) {
-                    verticesData[iVertice++] = faceVerticesData[index];
+                    verticesData[face.type][iVertice[face.type]++] = faceVerticesData[index];
                 }
             }
         }
 
-        const geometry = new THREE.BufferGeometry();
-        const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
-        verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as THREE.TypedArray | null) = null; });
-        geometry.setAttribute(PatchFactory.dataAttributeName, verticesDataBuffer);
-        geometry.setDrawRange(0, iVertice);
-        geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
+        const geometries: Record<Cube.FaceType, THREE.BufferGeometry> = {
+            up: new THREE.BufferGeometry(),
+            down: new THREE.BufferGeometry(),
+            left: new THREE.BufferGeometry(),
+            right: new THREE.BufferGeometry(),
+            front: new THREE.BufferGeometry(),
+            back: new THREE.BufferGeometry(),
+        };
+
+        const boundingBox = new THREE.Box3(patchStart, patchEnd);
         const boundingSphere = new THREE.Sphere();
-        geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
-        return geometry;
+        boundingBox.getBoundingSphere(boundingSphere);
+
+        for (const [faceType, geometry] of Object.entries(geometries) as [Cube.FaceType, THREE.BufferGeometry][]) {
+            const faceVerticesData = verticesData[faceType];
+            const faceIVertice = iVertice[faceType];
+            const faceVerticesDataBuffer = new THREE.Uint32BufferAttribute(faceVerticesData.subarray(0, faceIVertice), 1, false);
+            faceVerticesDataBuffer.onUpload(() => { (faceVerticesDataBuffer.array as THREE.TypedArray | null) = null; });
+            geometry.setAttribute(PatchFactorySplit.dataAttributeName, faceVerticesDataBuffer);
+            geometry.setDrawRange(0, faceIVertice);
+            geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
+            const boundingSphere = new THREE.Sphere();
+            geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
+        }
+
+        return geometries;
     }
 }
 
 export {
-    PatchFactory,
+    PatchFactorySplit,
     type PatchMaterial
 };
 
