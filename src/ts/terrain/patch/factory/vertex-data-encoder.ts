@@ -1,7 +1,7 @@
 import { PackedUintFactory } from "./uint-packing";
 
 class VertexDataEncoder {
-    private readonly packedUintFactory = new PackedUintFactory();
+    private readonly packedUintFactory = new PackedUintFactory(32);
     public readonly posX = this.packedUintFactory.encodePart(128);
     public readonly posY = this.packedUintFactory.encodePart(64);
     public readonly posZ = this.packedUintFactory.encodePart(128);

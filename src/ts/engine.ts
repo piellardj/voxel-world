@@ -20,6 +20,10 @@ class Engine {
     private readonly stats: Stats;
     private readonly gui: GUI;
 
+    private readonly parameters = {
+        instancedEngine: false,
+    };
+
     public constructor() {
         this.stats = new Stats();
         document.body.appendChild(this.stats.dom);
@@ -63,13 +67,23 @@ class Engine {
 
         const mapWidth = getUrlNumber("mapwidth", 256);
         const mapHeight = getUrlNumber("mapheight", 256);
-        const map = new VoxelMap(mapWidth, mapHeight, 10);
+        const map = new VoxelMap(mapWidth, mapHeight, 16);
         this.terrain = new Terrain(map);
         this.scene.add(this.terrain.container);
 
-        computeGeometryStats(this.scene);
+        const applyEngine = () => {
+            this.terrain.clear();
+            this.terrain.computePatches(this.parameters.instancedEngine);
+            computeGeometryStats(this.scene);
+        };
 
         this.gui = new GUI();
+        {
+            const folder = this.gui.addFolder("Engine");
+            folder.open();
+            folder.add(this.parameters, "instancedEngine").onChange(applyEngine);
+
+        }
         {
             const folder = this.gui.addFolder("Voxels");
             folder.open();
@@ -95,6 +109,8 @@ class Engine {
             folder.add(this.terrain.parameters.smoothEdges, "radius", 0, PatchFactory.maxSmoothEdgeRadius);
             folder.add(this.terrain.parameters.smoothEdges, "quality", [0, 1, 2]);
         }
+
+        applyEngine();
     }
 
     public start(): void {

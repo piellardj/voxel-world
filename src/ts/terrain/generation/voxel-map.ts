@@ -2,6 +2,7 @@ import { createNoise2D } from 'simplex-noise';
 import { ConstVec3 } from '../../helpers/types';
 import { THREE } from "../../three-usage";
 import { IVoxel, IVoxelMap, IVoxelMaterial } from '../i-voxel-map';
+import { Timer } from '../../helpers/time/timer';
 
 enum EVoxelType {
     ROCK,
@@ -29,6 +30,8 @@ class VoxelMap implements IVoxelMap {
     private readonly voxels: ReadonlyArray<StoredVoxel>;
 
     public constructor(width: number, height: number, altitude: number) {
+        const timer = new Timer();
+
         this.size = new THREE.Vector3(width, altitude, height);
 
         const noise2D = createNoise2D();
@@ -60,7 +63,7 @@ class VoxelMap implements IVoxelMap {
         }
         this.voxels = voxels;
 
-        console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels).`);
+        console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels) in ${timer.elapsed()} ms.`);
     }
 
     getAllVoxelMaterials(): IVoxelMaterial[] {

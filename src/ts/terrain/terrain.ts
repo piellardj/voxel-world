@@ -1,8 +1,10 @@
+import { Timer } from "../helpers/time/timer";
 import { ConstVec3 } from "../helpers/types";
 import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
 import { PatchFactory } from "./patch/factory/factory";
+import { PatchFactoryInstanced } from "./patch/factory/instanced/factory-instanced";
 import { EDisplayMode, Patch } from "./patch/patch";
 
 class Terrain {
@@ -29,37 +31,19 @@ class Terrain {
     };
 
     private readonly patchFactory: PatchFactory;
+    private readonly patchFactoryInstanced: PatchFactoryInstanced;
+
+    private readonly map: IVoxelMap;
+
     private patches: Patch[] = [];
 
     public constructor(map: IVoxelMap) {
-        this.container = new THREE.Group();
-
         this.patchFactory = new PatchFactory(map);
+        this.patchFactoryInstanced = new PatchFactoryInstanced(map);
 
-        const patchSize = this.computePatchSize();
-        console.log(`Using max patch size ${patchSize.x}x${patchSize.y}x${patchSize.z}.`);
+        this.map = map;
 
-        const patchStart = new THREE.Vector3();
-        for (patchStart.x = 0; patchStart.x < map.size.x; patchStart.x += patchSize.x) {
-            for (patchStart.y = 0; patchStart.y < map.size.y; patchStart.y += patchSize.y) {
-                for (patchStart.z = 0; patchStart.z < map.size.z; patchStart.z += patchSize.z) {
-                    const patchEnd = new THREE.Vector3(
-                        Math.min(map.size.x, patchStart.x + patchSize.x),
-                        Math.min(map.size.y, patchStart.y + patchSize.y),
-                        Math.min(map.size.z, patchStart.z + patchSize.z),
-                    );
-
-                    const startTimestamp = performance.now();
-                    const patch = this.patchFactory.buildPatch(patchStart, patchEnd);
-                    if (patch) {
-                        console.log(`Generated patch of size ${patch.patchSize.x}x${patch.patchSize.y}x${patch.patchSize.z} in ${(performance.now() - startTimestamp).toFixed(1)} ms.`);
-                        this.patches.push(patch);
-                        this.container.add(patch.container);
-                    }
-                }
-            }
-        }
-
+        this.container = new THREE.Group();
         this.container.translateX(-0.5 * map.size.x);
         this.container.translateZ(-0.5 * map.size.z);
 
@@ -72,6 +56,36 @@ class Terrain {
             const scale = 0.5;
             this.container.applyMatrix4(new THREE.Matrix4().makeScale(scale, scale, scale));
         }
+    }
+
+    public computePatches(instanced: boolean): void {
+        const factory = instanced ? this.patchFactoryInstanced : this.patchFactory;
+
+        const patchSize = Terrain.computePatchSize(factory);
+        console.log(`Using max patch size ${patchSize.x}x${patchSize.y}x${patchSize.z}.`);
+
+        const computationStart = new Timer();
+        const patchStart = new THREE.Vector3();
+        for (patchStart.x = 0; patchStart.x < this.map.size.x; patchStart.x += patchSize.x) {
+            for (patchStart.y = 0; patchStart.y < this.map.size.y; patchStart.y += patchSize.y) {
+                for (patchStart.z = 0; patchStart.z < this.map.size.z; patchStart.z += patchSize.z) {
+                    const patchEnd = new THREE.Vector3(
+                        Math.min(this.map.size.x, patchStart.x + patchSize.x),
+                        Math.min(this.map.size.y, patchStart.y + patchSize.y),
+                        Math.min(this.map.size.z, patchStart.z + patchSize.z),
+                    );
+
+                    const patchConstructorTimer = new Timer();
+                    const patch = factory.buildPatch(patchStart, patchEnd);
+                    if (patch) {
+                        console.log(`Generated patch of size ${patch.patchSize.x}x${patch.patchSize.y}x${patch.patchSize.z} in ${patchConstructorTimer.elapsed().toFixed(0)} ms.`);
+                        this.patches.push(patch);
+                        this.container.add(patch.container);
+                    }
+                }
+            }
+        }
+        console.log(`Computed all patches in ${computationStart.elapsed().toFixed()} ms`);
     }
 
     public updateUniforms(): void {
@@ -92,7 +106,7 @@ class Terrain {
         }
     }
 
-    public dispose(): void {
+    public clear(): void {
         for (const patch of this.patches) {
             patch.dispose();
             this.container.clear();
@@ -100,8 +114,14 @@ class Terrain {
         this.patches = [];
     }
 
-    private computePatchSize(): ConstVec3 {
-        const patchSize = this.patchFactory.maxPatchSize.clone();
+    public dispose(): void {
+        this.clear();
+        this.patchFactory.dispose();
+        this.patchFactoryInstanced.dispose();
+    }
+
+    private static computePatchSize(factory: PatchFactory | PatchFactoryInstanced): ConstVec3 {
+        const patchSize = factory.maxPatchSize.clone();
         const patchSizeFromUrl = tryGetUrlNumber("patchsize");
         if (patchSizeFromUrl !== null) {
             patchSize.x = Math.min(patchSize.x, patchSizeFromUrl);

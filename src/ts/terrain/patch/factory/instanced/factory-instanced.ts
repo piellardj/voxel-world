@@ -1,20 +1,23 @@
-import { THREE } from "../../../three-usage";
-import { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
-import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../material";
-import { Patch } from "../patch";
-import * as Cube from "./cube";
+import { THREE } from "../../../../three-usage";
+import { IVoxelMap, IVoxelMaterial } from "../../../i-voxel-map";
+import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../../material";
+import { Patch } from "../../patch";
+import * as Cube from "../cube";
+import { FaceDataEncoder } from "./face-data-encoder";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
-class PatchFactory {
+class PatchFactoryInstanced {
     public static readonly maxSmoothEdgeRadius = 0.3;
-    private static readonly dataAttributeName = "aData";
+    private static readonly faceDataAttributeName = "aData";
+    private static readonly verticesDataAttributeName = "aVertices";
 
+    private readonly faceDataEncoder = new FaceDataEncoder();
     private readonly vertexDataEncoder = new VertexDataEncoder();
 
     public readonly maxPatchSize = new THREE.Vector3(
-        this.vertexDataEncoder.posX.maxValue,
-        this.vertexDataEncoder.posY.maxValue,
-        this.vertexDataEncoder.posZ.maxValue,
+        this.faceDataEncoder.voxelX.maxValue + 1,
+        this.faceDataEncoder.voxelY.maxValue + 1,
+        this.faceDataEncoder.voxelZ.maxValue + 1,
     );
 
     private readonly texture: THREE.Texture;
@@ -34,7 +37,8 @@ class PatchFactory {
         glslVersion: "300 es",
         uniforms: this.uniformsTemplate,
         vertexShader: `
-        in uint ${PatchFactory.dataAttributeName};
+        in uint ${PatchFactoryInstanced.faceDataAttributeName};
+        in uint ${PatchFactoryInstanced.verticesDataAttributeName};
 
         out vec2 vUv;
         out vec2 vEdgeRoundness;
@@ -43,20 +47,32 @@ class PatchFactory {
         out float vAo;
 
         void main(void) {
-            vec3 worldPosition = vec3(uvec3(
-                ${this.vertexDataEncoder.posX.glslDecode(PatchFactory.dataAttributeName)},
-                ${this.vertexDataEncoder.posY.glslDecode(PatchFactory.dataAttributeName)},
-                ${this.vertexDataEncoder.posZ.glslDecode(PatchFactory.dataAttributeName)}
-            ));
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
+            uvec3 worldVoxelPosition = uvec3(
+                ${this.faceDataEncoder.voxelX.glslDecode(PatchFactoryInstanced.faceDataAttributeName)},
+                ${this.faceDataEncoder.voxelY.glslDecode(PatchFactoryInstanced.faceDataAttributeName)},
+                ${this.faceDataEncoder.voxelZ.glslDecode(PatchFactoryInstanced.faceDataAttributeName)}
+            );
+
+            const uint verticesId[] = uint[](${Cube.faceIndices.map(index => `${index}u`).join(", ")});
+            uint vertexId = verticesId[gl_VertexID];
+            uint vertexDataShift = ${this.vertexDataEncoder.bitsPerVertex}u * vertexId;
+
+            uvec3 localVertexPosition = uvec3(
+                ${this.vertexDataEncoder.localX.glslDecodeWithShift(PatchFactoryInstanced.verticesDataAttributeName, "vertexDataShift")},
+                ${this.vertexDataEncoder.localY.glslDecodeWithShift(PatchFactoryInstanced.verticesDataAttributeName, "vertexDataShift")},
+                ${this.vertexDataEncoder.localZ.glslDecodeWithShift(PatchFactoryInstanced.verticesDataAttributeName, "vertexDataShift")}
+            );
+            
+            vec3 worldVertexPosition = vec3(worldVoxelPosition + localVertexPosition);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(worldVertexPosition, 1.0);
     
             const vec3 modelFaceNormals[] = vec3[](
                 ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
             );
-            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode(PatchFactory.dataAttributeName)};
+            uint faceId = ${this.faceDataEncoder.faceId.glslDecode(PatchFactoryInstanced.faceDataAttributeName)};
             vWorldFaceNormal = modelFaceNormals[faceId];
 
-            const vec2 uvs[] = vec2[](
+           const vec2 uvs[] = vec2[](
                 vec2(0,0),
                 vec2(1,0),
                 vec2(0,1),
@@ -73,12 +89,12 @@ class PatchFactory {
                 vec2(0,1),
                 vec2(1,1)
             );
-            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactory.dataAttributeName)};
+            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecodeWithShift(PatchFactoryInstanced.verticesDataAttributeName, "vertexDataShift")};
             vEdgeRoundness = edgeRoundness[edgeRoundnessId];
 
-            vAo = float(${this.vertexDataEncoder.ao.glslDecode(PatchFactory.dataAttributeName)}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
+            vAo = float(${this.vertexDataEncoder.ao.glslDecodeWithShift(PatchFactoryInstanced.verticesDataAttributeName, "vertexDataShift")}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
-            vData = ${PatchFactory.dataAttributeName};
+            vData = ${PatchFactoryInstanced.faceDataAttributeName};
         }`,
         fragmentShader: `precision mediump float;
 
@@ -106,7 +122,7 @@ class PatchFactory {
             
             vec3 localNormal;
     
-            vec2 edgeRoundness = step(${PatchFactory.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
+            vec2 edgeRoundness = step(${PatchFactoryInstanced.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
             if (uSmoothEdgeMethod == 0u) {
                 vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
                 vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
@@ -132,17 +148,18 @@ class PatchFactory {
             );
             vec3 uvRight = uvRights[faceId];
 
+
             return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * vWorldFaceNormal;
         }
 
         void main(void) {
-            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode("vData")};
+            uint faceId = ${this.faceDataEncoder.faceId.glslDecode("vData")};
             
             vec3 modelFaceNormal = computeModelNormal(faceId);
 
             vec3 color = vec3(0.75);
             if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
-                uint material = ${this.vertexDataEncoder.voxelType.glslDecode("vData")};
+                uint material = ${this.faceDataEncoder.voxelType.glslDecode("vData")};
                 ivec2 texelCoords = ivec2(material, 0);
                 color = texelFetch(uTexture, texelCoords, 0).rgb;
             } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
@@ -169,7 +186,7 @@ class PatchFactory {
 
         const voxelMaterials = this.map.getAllVoxelMaterials();
         const voxelTypesCount = voxelMaterials.length;
-        const maxVoxelTypesSupported = this.vertexDataEncoder.voxelType.maxValue + 1;
+        const maxVoxelTypesSupported = this.faceDataEncoder.voxelType.maxValue + 1;
         if (voxelTypesCount > maxVoxelTypesSupported) {
             throw new Error(`A map cannot have more than ${maxVoxelTypesSupported} voxel types (received ${voxelTypesCount}).`);
         }
@@ -211,7 +228,7 @@ class PatchFactory {
 
     public dispose(): void {
         this.materialTemplate.dispose();
-        this.texture.dispose();
+        // this.texture.dispose();
     }
 
     private computeGeometry(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.BufferGeometry | null {
@@ -221,11 +238,10 @@ class PatchFactory {
         }
 
         const maxFacesPerCube = 6;
-        const verticesPerFace = 6;
-        const uint32PerVertex = 1;
-        const verticesData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * verticesPerFace * uint32PerVertex);
+        const faceData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * 1);
+        const verticesData = new Uint8Array(voxelsCountPerPatch * maxFacesPerCube * 4);
 
-        let iVertice = 0;
+        let iFace = 0;
         for (const voxel of this.map.iterateOnVoxels(patchStart, patchEnd)) {
             const voxelX = voxel.position.x;
             const voxelY = voxel.position.y;
@@ -235,17 +251,19 @@ class PatchFactory {
             const iY = voxelY - patchStart.y;
             const iZ = voxelZ - patchStart.z;
 
-            const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
             for (const face of Object.values(Cube.faces)) {
                 if (this.map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
                     // this face will be hidden -> skip it
                     continue;
                 }
-                // if (face.type !== "up") {
-                //     continue;
-                // }
 
-                face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
+                faceData[iFace] = this.faceDataEncoder.encode(
+                    iX, iY, iZ,
+                    face.id,
+                    voxel.typeId,
+                );
+
+                face.vertices.forEach((faceVertex: Cube.FaceVertex, vertexIndex: number) => {
                     let ao = 0;
                     const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
                     if (a && b) {
@@ -264,26 +282,35 @@ class PatchFactory {
                             roundnessY &&= !this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
                         }
                     }
-                    faceVerticesData[faceVertexIndex] = this.vertexDataEncoder.encode(
-                        faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
-                        face.id,
-                        voxel.typeId,
+
+                    verticesData[4 * iFace + vertexIndex] = this.vertexDataEncoder.encode(
+                        faceVertex.vertex.x, faceVertex.vertex.y, faceVertex.vertex.z,
                         ao,
                         [roundnessX, roundnessY],
                     );
                 });
 
-                for (const index of Cube.faceIndices) {
-                    verticesData[iVertice++] = faceVerticesData[index];
-                }
+                iFace++;
             }
         }
 
-        const geometry = new THREE.BufferGeometry();
-        const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
-        verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as THREE.TypedArray | null) = null; });
-        geometry.setAttribute(PatchFactory.dataAttributeName, verticesDataBuffer);
-        geometry.setDrawRange(0, iVertice);
+        const geometry = new THREE.InstancedBufferGeometry();
+        geometry.instanceCount = iFace;
+        geometry.setDrawRange(0, 6);
+
+        {
+            const faceDataArray = faceData.subarray(0, iFace);
+            const faceBufferAttribute = new THREE.InstancedBufferAttribute(faceDataArray, 1);
+            faceBufferAttribute.onUpload(() => { (faceBufferAttribute.array as THREE.TypedArray | null) = null; });
+            geometry.setAttribute(PatchFactoryInstanced.faceDataAttributeName, faceBufferAttribute);
+        }
+        {
+            const verticesDataArray = new Uint32Array(verticesData.subarray(0, iFace).buffer);
+            const verticesBufferAttribute = new THREE.InstancedBufferAttribute(verticesDataArray, 1);
+            verticesBufferAttribute.onUpload(() => { (verticesBufferAttribute.array as THREE.TypedArray | null) = null; });
+            geometry.setAttribute(PatchFactoryInstanced.verticesDataAttributeName, verticesBufferAttribute);
+        }
+
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
         const boundingSphere = new THREE.Sphere();
         geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
@@ -292,7 +319,7 @@ class PatchFactory {
 }
 
 export {
-    PatchFactory,
+    PatchFactoryInstanced,
     type PatchMaterial
 };
 

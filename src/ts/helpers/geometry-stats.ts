@@ -27,14 +27,19 @@ function computeGeometryStats(object: THREE.Object3D): void {
                 totalBuffersSizeInByte += mesh.geometry.index.array.byteLength;
             }
 
-            let instancesCount = 1;
+            let meshInstancesCount = 1;
+            let geometryInstancesCount = 1;
             if ((mesh as THREE.InstancedMesh).isInstancedMesh) {
                 const instancedMesh = mesh as THREE.InstancedMesh;
-                instancesCount = instancedMesh.count;
+                meshInstancesCount = instancedMesh.count;
             }
-            objectsCount += instancesCount;
-            verticesCount += instancesCount * meshVerticesCount;
-            trianglesCount += instancesCount * meshTrianglesCount;
+            if ((geometry as THREE.InstancedBufferGeometry).isInstancedBufferGeometry) {
+                const instancedGeometry = geometry as THREE.InstancedBufferGeometry;
+                geometryInstancesCount = instancedGeometry.instanceCount;
+            }
+            objectsCount += meshInstancesCount;
+            verticesCount += meshInstancesCount * geometryInstancesCount * meshVerticesCount;
+            trianglesCount += meshInstancesCount * geometryInstancesCount * meshTrianglesCount;
         }
     });
 
