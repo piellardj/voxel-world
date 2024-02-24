@@ -1,9 +1,8 @@
 import { THREE } from "../../../../three-usage";
 import { IVoxelMap } from "../../../i-voxel-map";
-import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../../material";
-import { Patch } from "../../patch";
+import { EDisplayMode, PatchMaterial } from "../../material";
 import * as Cube from "../cube";
-import { PatchFactoryBase } from "../factory-base";
+import { GeometryAndMaterial, PatchFactoryBase } from "../factory-base";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
 class PatchFactorySplit extends PatchFactoryBase {
@@ -16,17 +15,6 @@ class PatchFactorySplit extends PatchFactoryBase {
         PatchFactorySplit.vertexDataEncoder.voxelY.maxValue + 1,
         PatchFactorySplit.vertexDataEncoder.voxelZ.maxValue + 1,
     );
-
-    private readonly uniformsTemplate: PatchMaterialUniforms = {
-        uDisplayMode: { value: 0 },
-        uTexture: { value: null },
-        uAoStrength: { value: 0 },
-        uAoSpread: { value: 0 },
-        uSmoothEdgeRadius: { value: 0 },
-        uSmoothEdgeMethod: { value: 0 },
-        uAmbient: { value: 0 },
-        uDiffuse: { value: 0 },
-    };
 
     private readonly materialsTemplates: Record<Cube.FaceType, PatchMaterial> = {
         up: this.buildPatchMaterial("up"),
@@ -164,35 +152,6 @@ class PatchFactorySplit extends PatchFactoryBase {
 
     public constructor(map: IVoxelMap) {
         super(map, PatchFactorySplit.vertexDataEncoder.voxelType);
-
-        this.uniformsTemplate.uTexture.value = this.texture;
-    }
-
-    public buildPatch(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Patch | null {
-        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
-        if (patchSize.x > this.maxPatchSize.x || patchSize.y > this.maxPatchSize.y || patchSize.z > this.maxPatchSize.z) {
-            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${this.maxPatchSize.x}x${this.maxPatchSize.y}x${this.maxPatchSize.z})`);
-        }
-
-        const geometries = this.computeGeometries(patchStart, patchEnd);
-        if (!geometries) {
-            return null;
-        }
-
-        return new Patch(patchSize, Object.entries(geometries).map(value => {
-            const faceType = value[0] as Cube.FaceType;
-            const geometry = value[1];
-            const material = this.materialsTemplates[faceType].clone();
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.frustumCulled = false;
-            mesh.translateX(patchStart.x);
-            mesh.translateY(patchStart.y);
-            mesh.translateZ(patchStart.z);
-            return {
-                mesh,
-                material,
-            };
-        }));
     }
 
     protected disposeInternal(): void {
@@ -201,10 +160,10 @@ class PatchFactorySplit extends PatchFactoryBase {
         }
     }
 
-    private computeGeometries(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Record<Cube.FaceType, THREE.BufferGeometry> | null {
+    protected computePatchData(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): GeometryAndMaterial[] {
         const voxelsCountPerPatch = this.map.getMaxVoxelsCount(patchStart, patchEnd);
         if (voxelsCountPerPatch <= 0) {
-            return null;
+            return [];
         }
 
         const verticesPerFace = 6;
@@ -277,24 +236,26 @@ class PatchFactorySplit extends PatchFactoryBase {
             }
         }
 
-        const geometries: Record<Cube.FaceType, THREE.BufferGeometry> = {
-            up: new THREE.BufferGeometry(),
-            down: new THREE.BufferGeometry(),
-            left: new THREE.BufferGeometry(),
-            right: new THREE.BufferGeometry(),
-            front: new THREE.BufferGeometry(),
-            back: new THREE.BufferGeometry(),
+        const geometriesAndMaterials: Record<Cube.FaceType, GeometryAndMaterial> = {
+            up: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.up },
+            down: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.down },
+            left: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.left },
+            right: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.right },
+            front: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.front },
+            back: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.back },
         };
 
         const boundingBox = new THREE.Box3(patchStart, patchEnd);
         const boundingSphere = new THREE.Sphere();
         boundingBox.getBoundingSphere(boundingSphere);
 
-        for (const [faceType, geometry] of Object.entries(geometries) as [Cube.FaceType, THREE.BufferGeometry][]) {
+        for (const [faceType, geometryAndMaterial] of Object.entries(geometriesAndMaterials) as [Cube.FaceType, GeometryAndMaterial][]) {
             const faceVerticesData = verticesData[faceType];
             const faceIVertice = iVertice[faceType];
             const faceVerticesDataBuffer = new THREE.Uint32BufferAttribute(faceVerticesData.subarray(0, faceIVertice), 1, false);
             faceVerticesDataBuffer.onUpload(() => { (faceVerticesDataBuffer.array as THREE.TypedArray | null) = null; });
+
+            const geometry = geometryAndMaterial.geometry;
             geometry.setAttribute(PatchFactorySplit.dataAttributeName, faceVerticesDataBuffer);
             geometry.setDrawRange(0, faceIVertice);
             geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
@@ -302,7 +263,7 @@ class PatchFactorySplit extends PatchFactoryBase {
             geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
         }
 
-        return geometries;
+        return Object.values(geometriesAndMaterials);
     }
 }
 

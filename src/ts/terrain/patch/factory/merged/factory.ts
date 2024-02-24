@@ -1,9 +1,8 @@
 import { THREE } from "../../../../three-usage";
 import { IVoxelMap } from "../../../i-voxel-map";
-import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../../material";
-import { Patch } from "../../patch";
+import { EDisplayMode, PatchMaterial } from "../../material";
 import * as Cube from "../cube";
-import { PatchFactoryBase } from "../factory-base";
+import { GeometryAndMaterial, PatchFactoryBase } from "../factory-base";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
 class PatchFactoryMerged extends PatchFactoryBase {
@@ -16,17 +15,6 @@ class PatchFactoryMerged extends PatchFactoryBase {
         PatchFactoryMerged.vertexDataEncoder.posY.maxValue,
         PatchFactoryMerged.vertexDataEncoder.posZ.maxValue,
     );
-
-    private readonly uniformsTemplate: PatchMaterialUniforms = {
-        uDisplayMode: { value: 0 },
-        uTexture: { value: null },
-        uAoStrength: { value: 0 },
-        uAoSpread: { value: 0 },
-        uSmoothEdgeRadius: { value: 0 },
-        uSmoothEdgeMethod: { value: 0 },
-        uAmbient: { value: 0 },
-        uDiffuse: { value: 0 },
-    };
 
     private readonly materialTemplate = new THREE.ShaderMaterial({
         glslVersion: "300 es",
@@ -162,44 +150,16 @@ class PatchFactoryMerged extends PatchFactoryBase {
 
     public constructor(map: IVoxelMap) {
         super(map, PatchFactoryMerged.vertexDataEncoder.voxelType);
-
-        const voxelMaterials = this.map.getAllVoxelMaterials();
-        const voxelTypesCount = voxelMaterials.length;
-        const maxVoxelTypesSupported = PatchFactoryMerged.vertexDataEncoder.voxelType.maxValue + 1;
-        if (voxelTypesCount > maxVoxelTypesSupported) {
-            throw new Error(`A map cannot have more than ${maxVoxelTypesSupported} voxel types (received ${voxelTypesCount}).`);
-        }
-        this.uniformsTemplate.uTexture.value = this.texture;
     }
 
-    public buildPatch(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Patch | null {
-        const geometry = this.computeGeometry(patchStart, patchEnd);
-        if (!geometry) {
-            return null;
-        }
-
-        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
-        if (patchSize.x > this.maxPatchSize.x || patchSize.y > this.maxPatchSize.y || patchSize.z > this.maxPatchSize.z) {
-            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${this.maxPatchSize.x}x${this.maxPatchSize.y}x${this.maxPatchSize.z})`);
-        }
-
-        const material = this.materialTemplate.clone();
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.frustumCulled = false;
-        mesh.translateX(patchStart.x);
-        mesh.translateY(patchStart.y);
-        mesh.translateZ(patchStart.z);
-        return new Patch(patchSize, [{ mesh, material }]);
-    }
-
-    public disposeInternal(): void {
+    protected disposeInternal(): void {
         this.materialTemplate.dispose();
     }
 
-    private computeGeometry(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): THREE.BufferGeometry | null {
+    protected computePatchData(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): GeometryAndMaterial[] {
         const voxelsCountPerPatch = this.map.getMaxVoxelsCount(patchStart, patchEnd);
         if (voxelsCountPerPatch <= 0) {
-            return null;
+            return [];
         }
 
         const maxFacesPerCube = 6;
@@ -269,7 +229,7 @@ class PatchFactoryMerged extends PatchFactoryBase {
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
         const boundingSphere = new THREE.Sphere();
         geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
-        return geometry;
+        return [{ geometry, material: this.materialTemplate }];
     }
 }
 

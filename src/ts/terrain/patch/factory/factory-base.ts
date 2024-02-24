@@ -1,18 +1,33 @@
 import { THREE } from "../../../three-usage";
-import { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
+import type { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
+import type { PatchMaterial, PatchMaterialUniforms } from "../material";
 import { Patch } from "../patch";
-import { PackedUintFragment } from "./uint-packing";
+import type { PackedUintFragment } from "./uint-packing";
+
+type GeometryAndMaterial = {
+    readonly geometry: THREE.BufferGeometry;
+    readonly material: PatchMaterial;
+};
 
 abstract class PatchFactoryBase {
     public static readonly maxSmoothEdgeRadius = 0.3;
-    
-    public abstract readonly maxPatchSize: THREE.Vector3;
 
-    public abstract buildPatch(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Patch | null;
+    public abstract readonly maxPatchSize: THREE.Vector3;
 
     protected readonly map: IVoxelMap;
 
-    protected readonly texture: THREE.Texture;
+    private readonly texture: THREE.Texture;
+
+    protected readonly uniformsTemplate: PatchMaterialUniforms = {
+        uDisplayMode: { value: 0 },
+        uTexture: { value: null },
+        uAoStrength: { value: 0 },
+        uAoSpread: { value: 0 },
+        uSmoothEdgeRadius: { value: 0 },
+        uSmoothEdgeMethod: { value: 0 },
+        uAmbient: { value: 0 },
+        uDiffuse: { value: 0 },
+    };
 
     protected constructor(map: IVoxelMap, voxelTypeEncoder: PackedUintFragment) {
         this.map = map;
@@ -36,6 +51,29 @@ abstract class PatchFactoryBase {
         });
         this.texture = new THREE.DataTexture(textureData, textureWidth, textureHeight);
         this.texture.needsUpdate = true;
+        this.uniformsTemplate.uTexture.value = this.texture;
+    }
+
+    public buildPatch(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Patch | null {
+        const patchSize = new THREE.Vector3().subVectors(patchEnd, patchStart);
+        if (patchSize.x > this.maxPatchSize.x || patchSize.y > this.maxPatchSize.y || patchSize.z > this.maxPatchSize.z) {
+            throw new Error(`Patch is too big ${patchSize.x}x${patchSize.y}x${patchSize.z} (max is ${this.maxPatchSize.x}x${this.maxPatchSize.y}x${this.maxPatchSize.z})`);
+        }
+
+        const patchData = this.computePatchData(patchStart, patchEnd);
+        if (patchData.length === 0) {
+            return null;
+        }
+
+        return new Patch(patchSize, patchData.map(patchData => {
+            const material = patchData.material.clone();
+            const mesh = new THREE.Mesh(patchData.geometry, material);
+            mesh.frustumCulled = false;
+            mesh.translateX(patchStart.x);
+            mesh.translateY(patchStart.y);
+            mesh.translateZ(patchStart.z);
+            return { mesh, material };
+        }));
     }
 
     public dispose(): void {
@@ -43,10 +81,13 @@ abstract class PatchFactoryBase {
         this.texture.dispose();
     }
 
+    protected abstract computePatchData(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): GeometryAndMaterial[];
+
     protected abstract disposeInternal(): void;
 };
 
 export {
-    PatchFactoryBase
+    PatchFactoryBase,
+    type GeometryAndMaterial
 };
 
