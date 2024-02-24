@@ -1,11 +1,11 @@
-import { THREE } from "../../../three-usage";
-import { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
-import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../material";
-import { Patch } from "../patch";
-import * as Cube from "./cube";
+import { THREE } from "../../../../three-usage";
+import { IVoxelMap, IVoxelMaterial } from "../../../i-voxel-map";
+import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../../material";
+import { Patch } from "../../patch";
+import * as Cube from "../cube";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
-class PatchFactory {
+class PatchFactoryMerged {
     public static readonly maxSmoothEdgeRadius = 0.3;
     private static readonly dataAttributeName = "aData";
 
@@ -34,7 +34,7 @@ class PatchFactory {
         glslVersion: "300 es",
         uniforms: this.uniformsTemplate,
         vertexShader: `
-        in uint ${PatchFactory.dataAttributeName};
+        in uint ${PatchFactoryMerged.dataAttributeName};
 
         out vec2 vUv;
         out vec2 vEdgeRoundness;
@@ -44,16 +44,16 @@ class PatchFactory {
 
         void main(void) {
             vec3 worldPosition = vec3(uvec3(
-                ${this.vertexDataEncoder.posX.glslDecode(PatchFactory.dataAttributeName)},
-                ${this.vertexDataEncoder.posY.glslDecode(PatchFactory.dataAttributeName)},
-                ${this.vertexDataEncoder.posZ.glslDecode(PatchFactory.dataAttributeName)}
+                ${this.vertexDataEncoder.posX.glslDecode(PatchFactoryMerged.dataAttributeName)},
+                ${this.vertexDataEncoder.posY.glslDecode(PatchFactoryMerged.dataAttributeName)},
+                ${this.vertexDataEncoder.posZ.glslDecode(PatchFactoryMerged.dataAttributeName)}
             ));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPosition, 1.0);
     
             const vec3 modelFaceNormals[] = vec3[](
                 ${Cube.facesById.map(face => `vec3(${face.normal.x},${face.normal.y},${face.normal.z})`).join(", ")}
             );
-            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode(PatchFactory.dataAttributeName)};
+            uint faceId = ${this.vertexDataEncoder.faceId.glslDecode(PatchFactoryMerged.dataAttributeName)};
             vWorldFaceNormal = modelFaceNormals[faceId];
 
             const vec2 uvs[] = vec2[](
@@ -73,12 +73,12 @@ class PatchFactory {
                 vec2(0,1),
                 vec2(1,1)
             );
-            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactory.dataAttributeName)};
+            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactoryMerged.dataAttributeName)};
             vEdgeRoundness = edgeRoundness[edgeRoundnessId];
 
-            vAo = float(${this.vertexDataEncoder.ao.glslDecode(PatchFactory.dataAttributeName)}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
+            vAo = float(${this.vertexDataEncoder.ao.glslDecode(PatchFactoryMerged.dataAttributeName)}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
-            vData = ${PatchFactory.dataAttributeName};
+            vData = ${PatchFactoryMerged.dataAttributeName};
         }`,
         fragmentShader: `precision mediump float;
 
@@ -106,7 +106,7 @@ class PatchFactory {
             
             vec3 localNormal;
     
-            vec2 edgeRoundness = step(${PatchFactory.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
+            vec2 edgeRoundness = step(${PatchFactoryMerged.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
             if (uSmoothEdgeMethod == 0u) {
                 vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
                 vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
@@ -282,7 +282,7 @@ class PatchFactory {
         const geometry = new THREE.BufferGeometry();
         const verticesDataBuffer = new THREE.Uint32BufferAttribute(verticesData.subarray(0, iVertice), 1, false);
         verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as THREE.TypedArray | null) = null; });
-        geometry.setAttribute(PatchFactory.dataAttributeName, verticesDataBuffer);
+        geometry.setAttribute(PatchFactoryMerged.dataAttributeName, verticesDataBuffer);
         geometry.setDrawRange(0, iVertice);
         geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
         const boundingSphere = new THREE.Sphere();
@@ -292,7 +292,7 @@ class PatchFactory {
 }
 
 export {
-    PatchFactory,
+    PatchFactoryMerged,
     type PatchMaterial
 };
 

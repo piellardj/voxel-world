@@ -3,7 +3,7 @@ import { ConstVec3 } from "../helpers/types";
 import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
-import { PatchFactory } from "./patch/factory/factory";
+import { PatchFactoryMerged } from "./patch/factory/merged/factory";
 import { PatchFactoryInstanced } from "./patch/factory/instanced/factory-instanced";
 import { PatchFactorySplit } from "./patch/factory/split/factory";
 import { EDisplayMode, Patch } from "./patch/patch";
@@ -37,7 +37,7 @@ class Terrain {
         },
     };
 
-    private readonly patchFactory: PatchFactory;
+    private readonly PatchFactoryMerged: PatchFactoryMerged;
     private readonly patchFactoryInstanced: PatchFactoryInstanced;
     private readonly patchFactorySplit: PatchFactorySplit;
 
@@ -46,7 +46,7 @@ class Terrain {
     private patches: Patch[] = [];
 
     public constructor(map: IVoxelMap) {
-        this.patchFactory = new PatchFactory(map);
+        this.PatchFactoryMerged = new PatchFactoryMerged(map);
         this.patchFactoryInstanced = new PatchFactoryInstanced(map);
         this.patchFactorySplit = new PatchFactorySplit(map);
 
@@ -68,9 +68,9 @@ class Terrain {
     }
 
     public computePatches(factoryType: EFactoryType): void {
-        let factory: PatchFactory | PatchFactoryInstanced | PatchFactorySplit;
+        let factory: PatchFactoryMerged | PatchFactoryInstanced | PatchFactorySplit;
         if (factoryType === EFactoryType.MERGED) {
-            factory = this.patchFactory;
+            factory = this.PatchFactoryMerged;
         } else if (factoryType === EFactoryType.INSTANCED) {
             factory = this.patchFactoryInstanced;
         } else if (factoryType === EFactoryType.MERGED_SPLIT) {
@@ -134,7 +134,7 @@ class Terrain {
 
     public dispose(): void {
         this.clear();
-        this.patchFactory.dispose();
+        this.PatchFactoryMerged.dispose();
         this.patchFactoryInstanced.dispose();
     }
 
