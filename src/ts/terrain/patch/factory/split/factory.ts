@@ -34,7 +34,8 @@ class PatchFactorySplit extends PatchFactoryBase {
 
         out vec2 vUv;
         out vec2 vEdgeRoundness;
-        flat out uint vData;
+        flat out int vMaterial;
+        flat out int vNoise;
         out float vAo;
 
         void main(void) {
@@ -73,11 +74,14 @@ class PatchFactorySplit extends PatchFactoryBase {
 
             vAo = float(${PatchFactorySplit.vertexDataEncoder.ao.glslDecode(PatchFactorySplit.dataAttributeName)}) / ${PatchFactorySplit.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
-            vData = ${PatchFactorySplit.dataAttributeName};
+            vMaterial = int(${PatchFactorySplit.vertexDataEncoder.voxelType.glslDecode(PatchFactorySplit.dataAttributeName)});
+            vNoise = int(worldVoxelPosition.x + worldVoxelPosition.y * 3u + worldVoxelPosition.z * 2u) % ${this.noiseTypes};
         }`,
             fragmentShader: `precision mediump float;
 
         uniform sampler2D uTexture;
+        uniform sampler2D uNoiseTexture;
+        uniform float uNoiseStrength;
         uniform float uAmbient;
         uniform float uDiffuse;
         uniform float uAoStrength;
@@ -88,7 +92,8 @@ class PatchFactorySplit extends PatchFactoryBase {
 
         in vec2 vUv;
         in vec2 vEdgeRoundness;
-        flat in uint vData;
+        flat in int vMaterial;
+        flat in int vNoise;
         in float vAo;
 
         out vec4 fragColor;
@@ -122,17 +127,25 @@ class PatchFactorySplit extends PatchFactoryBase {
             return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * worldFaceNormal;
         }
 
+        float computeNoise() {
+            ivec2 texelCoords = clamp(ivec2(vUv * ${this.noiseResolution.toFixed(1)}), ivec2(0), ivec2(${this.noiseResolution - 1}));
+            texelCoords.x += vNoise * ${this.noiseResolution};
+            float noise = texelFetch(uNoiseTexture, texelCoords, 0).r - 0.5;
+            return uNoiseStrength * noise;
+        }
+
         void main(void) {
             vec3 modelFaceNormal = computeModelNormal();
 
             vec3 color = vec3(0.75);
             if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
-                uint material = ${PatchFactorySplit.vertexDataEncoder.voxelType.glslDecode("vData")};
-                ivec2 texelCoords = ivec2(material, 0);
+                ivec2 texelCoords = ivec2(vMaterial, 0);
                 color = texelFetch(uTexture, texelCoords, 0).rgb;
             } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
                 color = 0.5 + 0.5 * modelFaceNormal;
             }
+
+            color += computeNoise();
             
             const vec3 diffuseDirection = normalize(vec3(1, 1, 1));
             float diffuse = max(0.0, dot(modelFaceNormal, diffuseDirection));
@@ -141,8 +154,6 @@ class PatchFactorySplit extends PatchFactoryBase {
             float ao = (1.0 - uAoStrength) + uAoStrength * (smoothstep(0.0, uAoSpread, 1.0 - vAo));
             light *= ao;
             color *= light;
-
-            // color = vec3(vUv, 0);
 
             fragColor = vec4(color, 1);
         }

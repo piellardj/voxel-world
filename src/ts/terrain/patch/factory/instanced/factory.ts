@@ -30,6 +30,7 @@ class PatchFactoryInstanced extends PatchFactoryBase {
         out vec2 vEdgeRoundness;
         flat out vec3 vWorldFaceNormal;
         flat out uint vData;
+        flat out int vNoise;
         out float vAo;
 
         void main(void) {
@@ -81,10 +82,14 @@ class PatchFactoryInstanced extends PatchFactoryBase {
             vAo = float(${PatchFactoryInstanced.vertexDataEncoder.ao.glslDecodeWithShift(PatchFactoryInstanced.verticesDataAttributeName, "vertexDataShift")}) / ${PatchFactoryInstanced.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
             vData = ${PatchFactoryInstanced.faceDataAttributeName};
+
+            vNoise = int(worldVoxelPosition.x + worldVoxelPosition.y * 3u + worldVoxelPosition.z * 2u) % ${this.noiseTypes};
         }`,
         fragmentShader: `precision mediump float;
 
         uniform sampler2D uTexture;
+        uniform sampler2D uNoiseTexture;
+        uniform float uNoiseStrength;
         uniform float uAmbient;
         uniform float uDiffuse;
         uniform float uAoStrength;
@@ -97,6 +102,7 @@ class PatchFactoryInstanced extends PatchFactoryBase {
         in vec2 vEdgeRoundness;
         flat in vec3 vWorldFaceNormal;
         flat in uint vData;
+        flat in int vNoise;
         in float vAo;
 
         out vec4 fragColor;
@@ -134,8 +140,14 @@ class PatchFactoryInstanced extends PatchFactoryBase {
             );
             vec3 uvRight = uvRights[faceId];
 
-
             return localNormal.x * uvRight + localNormal.y * uvUp + localNormal.z * vWorldFaceNormal;
+        }
+
+        float computeNoise() {
+            ivec2 texelCoords = clamp(ivec2(vUv * ${this.noiseResolution.toFixed(1)}), ivec2(0), ivec2(${this.noiseResolution - 1}));
+            texelCoords.x += vNoise * ${this.noiseResolution};
+            float noise = texelFetch(uNoiseTexture, texelCoords, 0).r - 0.5;
+            return uNoiseStrength * noise;
         }
 
         void main(void) {
@@ -152,6 +164,8 @@ class PatchFactoryInstanced extends PatchFactoryBase {
                 color = 0.5 + 0.5 * modelFaceNormal;
             }
             
+            color += computeNoise();
+
             const vec3 diffuseDirection = normalize(vec3(1, 1, 1));
             float diffuse = max(0.0, dot(modelFaceNormal, diffuseDirection));
 

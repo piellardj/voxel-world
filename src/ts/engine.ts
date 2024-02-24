@@ -87,6 +87,7 @@ class Engine {
             const folder = this.gui.addFolder("Voxels");
             folder.open();
             folder.add(this.terrain.parameters.voxels, "displayMode", { texture: EDisplayMode.TEXTURES, normals: EDisplayMode.NORMALS, grey: EDisplayMode.GREY });
+            folder.add(this.terrain.parameters.voxels, "noiseStrength", 0, 0.1);
         }
         {
             const folder = this.gui.addFolder("Lighting");

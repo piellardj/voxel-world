@@ -21,6 +21,7 @@ class Terrain {
     public readonly parameters = {
         voxels: {
             displayMode: EDisplayMode.TEXTURES,
+            noiseStrength: 0.025,
         },
         lighting: {
             ambient: 0.7,
@@ -110,6 +111,7 @@ class Terrain {
     public updateUniforms(): void {
         for (const patch of this.patches) {
             patch.parameters.voxels.displayMode = this.parameters.voxels.displayMode;
+            patch.parameters.voxels.noiseStrength = this.parameters.voxels.noiseStrength;
 
             patch.parameters.lighting.ambient = this.parameters.lighting.ambient;
             patch.parameters.lighting.diffuse = this.parameters.lighting.diffuse;

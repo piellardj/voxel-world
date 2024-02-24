@@ -13,6 +13,7 @@ class Patch {
     public readonly parameters = {
         voxels: {
             displayMode: EDisplayMode.TEXTURES,
+            noiseStrength: 0.05,
         },
         lighting: {
             ambient: 0.7,
@@ -55,6 +56,7 @@ class Patch {
                 patchMesh.material.uniforms.uDisplayMode.value = this.parameters.voxels.displayMode;
                 patchMesh.material.uniforms.uAmbient.value = this.parameters.lighting.ambient;
                 patchMesh.material.uniforms.uDiffuse.value = this.parameters.lighting.diffuse;
+                patchMesh.material.uniforms.uNoiseStrength.value = this.parameters.voxels.noiseStrength;
             }
         }
     }

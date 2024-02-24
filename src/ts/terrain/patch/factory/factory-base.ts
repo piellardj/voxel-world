@@ -35,40 +35,31 @@ abstract class PatchFactoryBase {
     protected readonly map: IVoxelMap;
 
     private readonly texture: THREE.Texture;
+    private readonly noiseTexture: THREE.Texture;
 
-    protected readonly uniformsTemplate: PatchMaterialUniforms = {
-        uDisplayMode: { value: 0 },
-        uTexture: { value: null },
-        uAoStrength: { value: 0 },
-        uAoSpread: { value: 0 },
-        uSmoothEdgeRadius: { value: 0 },
-        uSmoothEdgeMethod: { value: 0 },
-        uAmbient: { value: 0 },
-        uDiffuse: { value: 0 },
-    };
+    protected readonly noiseResolution = 3;
+    protected readonly noiseTypes = 16;
+
+    protected readonly uniformsTemplate: PatchMaterialUniforms;
 
     protected constructor(map: IVoxelMap, voxelTypeEncoder: PackedUintFragment) {
         this.map = map;
 
-        const voxelMaterials = this.map.getAllVoxelMaterials();
-        const voxelTypesCount = voxelMaterials.length;
-        const maxVoxelTypesSupported = voxelTypeEncoder.maxValue + 1;
-        if (voxelTypesCount > maxVoxelTypesSupported) {
-            throw new Error(`A map cannot have more than ${maxVoxelTypesSupported} voxel types (received ${voxelTypesCount}).`);
-        }
+        this.texture = PatchFactoryBase.buildMaterialsTexture(map.getAllVoxelMaterials(), voxelTypeEncoder);
+        this.noiseTexture = PatchFactoryBase.buildNoiseTexture(this.noiseResolution, this.noiseTypes);
 
-        const textureWidth = voxelTypesCount;
-        const textureHeight = 1;
-        const textureData = new Uint8Array(4 * textureWidth * textureHeight);
-
-        voxelMaterials.forEach((material: IVoxelMaterial, materialId: number) => {
-            textureData[4 * materialId + 0] = 255 * material.color.r;
-            textureData[4 * materialId + 1] = 255 * material.color.g;
-            textureData[4 * materialId + 2] = 255 * material.color.b;
-            textureData[4 * materialId + 3] = 255;
-        });
-        this.texture = new THREE.DataTexture(textureData, textureWidth, textureHeight);
-        this.texture.needsUpdate = true;
+        this.uniformsTemplate = {
+            uDisplayMode: { value: 0 },
+            uTexture: { value: this.texture },
+            uNoiseTexture: { value: this.noiseTexture },
+            uNoiseStrength: { value: 0 },
+            uAoStrength: { value: 0 },
+            uAoSpread: { value: 0 },
+            uSmoothEdgeRadius: { value: 0 },
+            uSmoothEdgeMethod: { value: 0 },
+            uAmbient: { value: 0 },
+            uDiffuse: { value: 0 },
+        };
         this.uniformsTemplate.uTexture.value = this.texture;
     }
 
@@ -105,6 +96,7 @@ abstract class PatchFactoryBase {
     public dispose(): void {
         this.disposeInternal();
         this.texture.dispose();
+        this.noiseTexture.dispose();
     }
 
     protected *iterateOnVisibleFaces(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Generator<FaceData> {
@@ -153,6 +145,41 @@ abstract class PatchFactoryBase {
     protected abstract computePatchData(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): GeometryAndMaterial[];
 
     protected abstract disposeInternal(): void;
+
+    private static buildMaterialsTexture(voxelMaterials: IVoxelMaterial[], voxelTypeEncoder: PackedUintFragment): THREE.Texture {
+        const voxelTypesCount = voxelMaterials.length;
+        const maxVoxelTypesSupported = voxelTypeEncoder.maxValue + 1;
+        if (voxelTypesCount > maxVoxelTypesSupported) {
+            throw new Error(`A map cannot have more than ${maxVoxelTypesSupported} voxel types (received ${voxelTypesCount}).`);
+        }
+
+        const textureWidth = voxelTypesCount;
+        const textureHeight = 1;
+        const textureData = new Uint8Array(4 * textureWidth * textureHeight);
+
+        voxelMaterials.forEach((material: IVoxelMaterial, materialId: number) => {
+            textureData[4 * materialId + 0] = 255 * material.color.r;
+            textureData[4 * materialId + 1] = 255 * material.color.g;
+            textureData[4 * materialId + 2] = 255 * material.color.b;
+            textureData[4 * materialId + 3] = 255;
+        });
+        const texture = new THREE.DataTexture(textureData, textureWidth, textureHeight);
+        texture.needsUpdate = true;
+        return texture;
+    }
+
+    private static buildNoiseTexture(resolution: number, typesCount: number): THREE.Texture {
+        const textureWidth = resolution * typesCount;
+        const textureHeight = resolution;
+        const textureData = new Uint8Array(4 * textureWidth * textureHeight);
+
+        for (let i = 0; i < textureData.length; i++) {
+            textureData[i] = 256 * Math.random();
+        }
+        const texture = new THREE.DataTexture(textureData, textureWidth, textureHeight);
+        texture.needsUpdate = true;
+        return texture;
+    }
 }
 
 export {
