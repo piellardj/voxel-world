@@ -1,23 +1,21 @@
 import { THREE } from "../../../../three-usage";
-import { IVoxelMap, IVoxelMaterial } from "../../../i-voxel-map";
+import { IVoxelMap } from "../../../i-voxel-map";
 import { EDisplayMode, PatchMaterial, PatchMaterialUniforms } from "../../material";
 import { Patch } from "../../patch";
 import * as Cube from "../cube";
+import { PatchFactoryBase } from "../factory-base";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
-class PatchFactorySplit {
-    public static readonly maxSmoothEdgeRadius = 0.3;
+class PatchFactorySplit extends PatchFactoryBase {
     private static readonly dataAttributeName = "aData";
 
-    private readonly vertexDataEncoder = new VertexDataEncoder();
+    private static readonly vertexDataEncoder = new VertexDataEncoder();
 
     public readonly maxPatchSize = new THREE.Vector3(
-        this.vertexDataEncoder.voxelX.maxValue + 1,
-        this.vertexDataEncoder.voxelY.maxValue + 1,
-        this.vertexDataEncoder.voxelZ.maxValue + 1,
+        PatchFactorySplit.vertexDataEncoder.voxelX.maxValue + 1,
+        PatchFactorySplit.vertexDataEncoder.voxelY.maxValue + 1,
+        PatchFactorySplit.vertexDataEncoder.voxelZ.maxValue + 1,
     );
-
-    private readonly texture: THREE.Texture;
 
     private readonly uniformsTemplate: PatchMaterialUniforms = {
         uDisplayMode: { value: 0 },
@@ -56,9 +54,9 @@ class PatchFactorySplit {
             uint vertexId = vertexIds[gl_VertexID % 6];
 
             uvec3 worldVoxelPosition = uvec3(
-                ${this.vertexDataEncoder.voxelX.glslDecode(PatchFactorySplit.dataAttributeName)},
-                ${this.vertexDataEncoder.voxelY.glslDecode(PatchFactorySplit.dataAttributeName)},
-                ${this.vertexDataEncoder.voxelZ.glslDecode(PatchFactorySplit.dataAttributeName)}
+                ${PatchFactorySplit.vertexDataEncoder.voxelX.glslDecode(PatchFactorySplit.dataAttributeName)},
+                ${PatchFactorySplit.vertexDataEncoder.voxelY.glslDecode(PatchFactorySplit.dataAttributeName)},
+                ${PatchFactorySplit.vertexDataEncoder.voxelZ.glslDecode(PatchFactorySplit.dataAttributeName)}
             );
 
             const uvec3 localVertexPositions[] = uvec3[](
@@ -82,10 +80,10 @@ class PatchFactorySplit {
                 vec2(0,1),
                 vec2(1,1)
             );
-            uint edgeRoundnessId = ${this.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactorySplit.dataAttributeName)};
+            uint edgeRoundnessId = ${PatchFactorySplit.vertexDataEncoder.edgeRoundness.glslDecode(PatchFactorySplit.dataAttributeName)};
             vEdgeRoundness = edgeRoundness[edgeRoundnessId];
 
-            vAo = float(${this.vertexDataEncoder.ao.glslDecode(PatchFactorySplit.dataAttributeName)}) / ${this.vertexDataEncoder.ao.maxValue.toFixed(1)};
+            vAo = float(${PatchFactorySplit.vertexDataEncoder.ao.glslDecode(PatchFactorySplit.dataAttributeName)}) / ${PatchFactorySplit.vertexDataEncoder.ao.maxValue.toFixed(1)};
 
             vData = ${PatchFactorySplit.dataAttributeName};
         }`,
@@ -115,7 +113,7 @@ class PatchFactorySplit {
             
             vec3 localNormal;
     
-            vec2 edgeRoundness = step(${PatchFactorySplit.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
+            vec2 edgeRoundness = step(${PatchFactoryBase.maxSmoothEdgeRadius.toFixed(2)}, vEdgeRoundness);
             if (uSmoothEdgeMethod == 0u) {
                 vec2 margin = mix(vec2(0), vec2(uSmoothEdgeRadius), edgeRoundness);
                 vec3 roundnessCenter = vec3(clamp(vUv, margin, 1.0 - margin), -uSmoothEdgeRadius);
@@ -141,7 +139,7 @@ class PatchFactorySplit {
 
             vec3 color = vec3(0.75);
             if (uDisplayMode == ${EDisplayMode.TEXTURES}u) {
-                uint material = ${this.vertexDataEncoder.voxelType.glslDecode("vData")};
+                uint material = ${PatchFactorySplit.vertexDataEncoder.voxelType.glslDecode("vData")};
                 ivec2 texelCoords = ivec2(material, 0);
                 color = texelFetch(uTexture, texelCoords, 0).rgb;
             } else if (uDisplayMode == ${EDisplayMode.NORMALS}u) {
@@ -164,30 +162,9 @@ class PatchFactorySplit {
         }) as unknown as PatchMaterial;
     }
 
-    private readonly map: IVoxelMap;
-
     public constructor(map: IVoxelMap) {
-        this.map = map;
+        super(map, PatchFactorySplit.vertexDataEncoder.voxelType);
 
-        const voxelMaterials = this.map.getAllVoxelMaterials();
-        const voxelTypesCount = voxelMaterials.length;
-        const maxVoxelTypesSupported = this.vertexDataEncoder.voxelType.maxValue + 1;
-        if (voxelTypesCount > maxVoxelTypesSupported) {
-            throw new Error(`A map cannot have more than ${maxVoxelTypesSupported} voxel types (received ${voxelTypesCount}).`);
-        }
-
-        const textureWidth = voxelTypesCount;
-        const textureHeight = 1;
-        const textureData = new Uint8Array(4 * textureWidth * textureHeight);
-
-        voxelMaterials.forEach((material: IVoxelMaterial, materialId: number) => {
-            textureData[4 * materialId + 0] = 255 * material.color.r;
-            textureData[4 * materialId + 1] = 255 * material.color.g;
-            textureData[4 * materialId + 2] = 255 * material.color.b;
-            textureData[4 * materialId + 3] = 255;
-        });
-        this.texture = new THREE.DataTexture(textureData, textureWidth, textureHeight);
-        this.texture.needsUpdate = true;
         this.uniformsTemplate.uTexture.value = this.texture;
     }
 
@@ -218,11 +195,10 @@ class PatchFactorySplit {
         }));
     }
 
-    public dispose(): void {
+    protected disposeInternal(): void {
         for (const material of Object.values(this.materialsTemplates)) {
             material.dispose();
         }
-        this.texture.dispose();
     }
 
     private computeGeometries(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Record<Cube.FaceType, THREE.BufferGeometry> | null {
@@ -287,7 +263,7 @@ class PatchFactorySplit {
                             roundnessY &&= !this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
                         }
                     }
-                    faceVerticesData[faceVertexIndex] = this.vertexDataEncoder.encode(
+                    faceVerticesData[faceVertexIndex] = PatchFactorySplit.vertexDataEncoder.encode(
                         iX, iY, iZ,
                         voxel.typeId,
                         ao,

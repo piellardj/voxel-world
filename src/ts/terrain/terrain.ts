@@ -3,8 +3,9 @@ import { ConstVec3 } from "../helpers/types";
 import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
-import { PatchFactoryMerged } from "./patch/factory/merged/factory";
+import { PatchFactoryBase } from "./patch/factory/factory-base";
 import { PatchFactoryInstanced } from "./patch/factory/instanced/factory-instanced";
+import { PatchFactoryMerged } from "./patch/factory/merged/factory";
 import { PatchFactorySplit } from "./patch/factory/split/factory";
 import { EDisplayMode, Patch } from "./patch/patch";
 
@@ -37,9 +38,9 @@ class Terrain {
         },
     };
 
-    private readonly PatchFactoryMerged: PatchFactoryMerged;
-    private readonly patchFactoryInstanced: PatchFactoryInstanced;
-    private readonly patchFactorySplit: PatchFactorySplit;
+    private readonly PatchFactoryMerged: PatchFactoryBase;
+    private readonly patchFactoryInstanced: PatchFactoryBase;
+    private readonly patchFactorySplit: PatchFactoryBase;
 
     private readonly map: IVoxelMap;
 
@@ -68,7 +69,7 @@ class Terrain {
     }
 
     public computePatches(factoryType: EFactoryType): void {
-        let factory: PatchFactoryMerged | PatchFactoryInstanced | PatchFactorySplit;
+        let factory: PatchFactoryBase;
         if (factoryType === EFactoryType.MERGED) {
             factory = this.PatchFactoryMerged;
         } else if (factoryType === EFactoryType.INSTANCED) {
