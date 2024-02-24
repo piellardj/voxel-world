@@ -2,7 +2,7 @@ import { THREE } from "../../../../three-usage";
 import { IVoxelMap } from "../../../i-voxel-map";
 import { EDisplayMode, PatchMaterial } from "../../material";
 import * as Cube from "../cube";
-import { GeometryAndMaterial, PatchFactoryBase } from "../factory-base";
+import { GeometryAndMaterial, PatchFactoryBase, VertexData } from "../factory-base";
 import { FaceDataEncoder } from "./face-data-encoder";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
@@ -180,60 +180,26 @@ class PatchFactoryInstanced extends PatchFactoryBase {
         }
 
         const maxFacesPerCube = 6;
-        const faceData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * 1);
-        const verticesData = new Uint8Array(voxelsCountPerPatch * maxFacesPerCube * 4);
+        const faceDataArray = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * 1);
+        const verticesDataArray = new Uint8Array(voxelsCountPerPatch * maxFacesPerCube * 4);
 
         let iFace = 0;
-        for (const voxel of this.map.iterateOnVoxels(patchStart, patchEnd)) {
-            const voxelX = voxel.position.x;
-            const voxelY = voxel.position.y;
-            const voxelZ = voxel.position.z;
+        for (const faceData of this.iterateOnVisibleFaces(patchStart, patchEnd)) {
+            faceDataArray[iFace] = PatchFactoryInstanced.faceDataEncoder.encode(
+                faceData.voxelLocalPosition.x, faceData.voxelLocalPosition.y, faceData.voxelLocalPosition.z,
+                faceData.faceId,
+                faceData.voxelType,
+            );
 
-            const iX = voxelX - patchStart.x;
-            const iY = voxelY - patchStart.y;
-            const iZ = voxelZ - patchStart.z;
-
-            for (const face of Object.values(Cube.faces)) {
-                if (this.map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
-                    // this face will be hidden -> skip it
-                    continue;
-                }
-
-                faceData[iFace] = PatchFactoryInstanced.faceDataEncoder.encode(
-                    iX, iY, iZ,
-                    face.id,
-                    voxel.typeId,
+            faceData.verticesData.forEach((vertexData: VertexData, vertexIndex: number) => {
+                verticesDataArray[4 * iFace + vertexIndex] = PatchFactoryInstanced.vertexDataEncoder.encode(
+                    vertexData.localPosition.x, vertexData.localPosition.y, vertexData.localPosition.z,
+                    vertexData.ao,
+                    [vertexData.roundnessX, vertexData.roundnessY],
                 );
+            });
 
-                face.vertices.forEach((faceVertex: Cube.FaceVertex, vertexIndex: number) => {
-                    let ao = 0;
-                    const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
-                    if (a && b) {
-                        ao = 3;
-                    } else {
-                        ao = +a + +b + +c;
-                    }
-
-                    let roundnessX = true;
-                    let roundnessY = true;
-                    if (faceVertex.edgeNeighbourVoxels) {
-                        for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
-                            roundnessX &&= !this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
-                        }
-                        for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
-                            roundnessY &&= !this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
-                        }
-                    }
-
-                    verticesData[4 * iFace + vertexIndex] = PatchFactoryInstanced.vertexDataEncoder.encode(
-                        faceVertex.vertex.x, faceVertex.vertex.y, faceVertex.vertex.z,
-                        ao,
-                        [roundnessX, roundnessY],
-                    );
-                });
-
-                iFace++;
-            }
+            iFace++;
         }
 
         const geometry = new THREE.InstancedBufferGeometry();
@@ -241,14 +207,14 @@ class PatchFactoryInstanced extends PatchFactoryBase {
         geometry.setDrawRange(0, 6);
 
         {
-            const faceDataArray = faceData.subarray(0, iFace);
-            const faceBufferAttribute = new THREE.InstancedBufferAttribute(faceDataArray, 1);
+            const faceDataArrayExact = faceDataArray.subarray(0, iFace);
+            const faceBufferAttribute = new THREE.InstancedBufferAttribute(faceDataArrayExact, 1);
             faceBufferAttribute.onUpload(() => { (faceBufferAttribute.array as THREE.TypedArray | null) = null; });
             geometry.setAttribute(PatchFactoryInstanced.faceDataAttributeName, faceBufferAttribute);
         }
         {
-            const verticesDataArray = new Uint32Array(verticesData.subarray(0, iFace).buffer);
-            const verticesBufferAttribute = new THREE.InstancedBufferAttribute(verticesDataArray, 1);
+            const verticesDataArrayExact = new Uint32Array(verticesDataArray.subarray(0, iFace).buffer);
+            const verticesBufferAttribute = new THREE.InstancedBufferAttribute(verticesDataArrayExact, 1);
             verticesBufferAttribute.onUpload(() => { (verticesBufferAttribute.array as THREE.TypedArray | null) = null; });
             geometry.setAttribute(PatchFactoryInstanced.verticesDataAttributeName, verticesBufferAttribute);
         }

@@ -4,7 +4,7 @@ import { tryGetUrlNumber } from "../helpers/url-param";
 import { THREE } from "../three-usage";
 import { IVoxelMap } from "./i-voxel-map";
 import { PatchFactoryBase } from "./patch/factory/factory-base";
-import { PatchFactoryInstanced } from "./patch/factory/instanced/factory-instanced";
+import { PatchFactoryInstanced } from "./patch/factory/instanced/factory";
 import { PatchFactoryMerged } from "./patch/factory/merged/factory";
 import { PatchFactorySplit } from "./patch/factory/split/factory";
 import { EDisplayMode, Patch } from "./patch/patch";

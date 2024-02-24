@@ -1,12 +1,31 @@
+import { ConstVec3 } from "../../../helpers/types";
 import { THREE } from "../../../three-usage";
 import type { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
 import type { PatchMaterial, PatchMaterialUniforms } from "../material";
 import { Patch } from "../patch";
+import * as Cube from "./cube";
+import { FaceType } from "./cube";
 import type { PackedUintFragment } from "./uint-packing";
 
 type GeometryAndMaterial = {
     readonly geometry: THREE.BufferGeometry;
     readonly material: PatchMaterial;
+};
+
+type FaceData = {
+    readonly voxelWorldPosition: ConstVec3;
+    readonly voxelLocalPosition: ConstVec3;
+    readonly voxelType: number;
+    readonly faceType: FaceType;
+    readonly faceId: number;
+    readonly verticesData: [VertexData, VertexData, VertexData, VertexData];
+};
+
+type VertexData = {
+    readonly localPosition: ConstVec3;
+    readonly ao: number;
+    readonly roundnessX: boolean;
+    readonly roundnessY: boolean;
 };
 
 abstract class PatchFactoryBase {
@@ -81,6 +100,49 @@ abstract class PatchFactoryBase {
         this.texture.dispose();
     }
 
+    protected *iterateOnVisibleFaces(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Generator<FaceData> {
+        for (const voxel of this.map.iterateOnVoxels(patchStart, patchEnd)) {
+            const voxelWorldPosition = new THREE.Vector3(voxel.position.x, voxel.position.y, voxel.position.z);
+            const voxelLocalPosition = new THREE.Vector3().subVectors(voxelWorldPosition, patchStart)
+
+            for (const face of Object.values(Cube.faces)) {
+                if (this.map.voxelExists(voxelWorldPosition.x + face.normal.x, voxelWorldPosition.y + face.normal.y, voxelWorldPosition.z + face.normal.z)) {
+                    // this face will be hidden -> skip it
+                    continue;
+                }
+
+                yield {
+                    voxelWorldPosition,
+                    voxelLocalPosition,
+                    voxelType: voxel.typeId,
+                    faceType: face.type,
+                    faceId: face.id,
+                    verticesData: face.vertices.map((faceVertex: Cube.FaceVertex): VertexData => {
+                        let ao = 0;
+                        const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => this.map.voxelExists(voxelWorldPosition.x + neighbourVoxel.x, voxelWorldPosition.y + neighbourVoxel.y, voxelWorldPosition.z + neighbourVoxel.z));
+                        if (a && b) {
+                            ao = 3;
+                        } else {
+                            ao = +a + +b + +c;
+                        }
+
+                        let roundnessX = true;
+                        let roundnessY = true;
+                        if (faceVertex.edgeNeighbourVoxels) {
+                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
+                                roundnessX &&= !this.map.voxelExists(voxelWorldPosition.x + neighbourVoxel.x, voxelWorldPosition.y + neighbourVoxel.y, voxelWorldPosition.z + neighbourVoxel.z);
+                            }
+                            for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
+                                roundnessY &&= !this.map.voxelExists(voxelWorldPosition.x + neighbourVoxel.x, voxelWorldPosition.y + neighbourVoxel.y, voxelWorldPosition.z + neighbourVoxel.z);
+                            }
+                        }
+                        return { localPosition: faceVertex.vertex, ao, roundnessX, roundnessY };
+                    }) as [VertexData, VertexData, VertexData, VertexData],
+                };
+            }
+        }
+    }
+
     protected abstract computePatchData(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): GeometryAndMaterial[];
 
     protected abstract disposeInternal(): void;
@@ -88,6 +150,7 @@ abstract class PatchFactoryBase {
 
 export {
     PatchFactoryBase,
-    type GeometryAndMaterial
+    type GeometryAndMaterial,
+    type VertexData
 };
 

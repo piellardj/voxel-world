@@ -2,7 +2,7 @@ import { THREE } from "../../../../three-usage";
 import { IVoxelMap } from "../../../i-voxel-map";
 import { EDisplayMode, PatchMaterial } from "../../material";
 import * as Cube from "../cube";
-import { GeometryAndMaterial, PatchFactoryBase } from "../factory-base";
+import { GeometryAndMaterial, PatchFactoryBase, VertexData } from "../factory-base";
 import { VertexDataEncoder } from "./vertex-data-encoder";
 
 class PatchFactoryMerged extends PatchFactoryBase {
@@ -168,56 +168,22 @@ class PatchFactoryMerged extends PatchFactoryBase {
         const verticesData = new Uint32Array(voxelsCountPerPatch * maxFacesPerCube * verticesPerFace * uint32PerVertex);
 
         let iVertice = 0;
-        for (const voxel of this.map.iterateOnVoxels(patchStart, patchEnd)) {
-            const voxelX = voxel.position.x;
-            const voxelY = voxel.position.y;
-            const voxelZ = voxel.position.z;
+        const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
+        for (const faceData of this.iterateOnVisibleFaces(patchStart, patchEnd)) {
+            faceData.verticesData.forEach((faceVertexData: VertexData, faceVertexIndex: number) => {
+                faceVerticesData[faceVertexIndex] = PatchFactoryMerged.vertexDataEncoder.encode(
+                    faceData.voxelLocalPosition.x + faceVertexData.localPosition.x,
+                    faceData.voxelLocalPosition.y + faceVertexData.localPosition.y,
+                    faceData.voxelLocalPosition.z + faceVertexData.localPosition.z,
+                    faceData.faceId,
+                    faceData.voxelType,
+                    faceVertexData.ao,
+                    [faceVertexData.roundnessX, faceVertexData.roundnessY],
+                );
+            });
 
-            const iX = voxelX - patchStart.x;
-            const iY = voxelY - patchStart.y;
-            const iZ = voxelZ - patchStart.z;
-
-            const faceVerticesData = new Uint32Array(4 * uint32PerVertex);
-            for (const face of Object.values(Cube.faces)) {
-                if (this.map.voxelExists(voxelX + face.normal.x, voxelY + face.normal.y, voxelZ + face.normal.z)) {
-                    // this face will be hidden -> skip it
-                    continue;
-                }
-                // if (face.type !== "up") {
-                //     continue;
-                // }
-
-                face.vertices.forEach((faceVertex: Cube.FaceVertex, faceVertexIndex: number) => {
-                    let ao = 0;
-                    const [a, b, c] = faceVertex.shadowingNeighbourVoxels.map(neighbourVoxel => this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z));
-                    if (a && b) {
-                        ao = 3;
-                    } else {
-                        ao = +a + +b + +c;
-                    }
-
-                    let roundnessX = true;
-                    let roundnessY = true;
-                    if (faceVertex.edgeNeighbourVoxels) {
-                        for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.x) {
-                            roundnessX &&= !this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
-                        }
-                        for (const neighbourVoxel of faceVertex.edgeNeighbourVoxels.y) {
-                            roundnessY &&= !this.map.voxelExists(voxelX + neighbourVoxel.x, voxelY + neighbourVoxel.y, voxelZ + neighbourVoxel.z);
-                        }
-                    }
-                    faceVerticesData[faceVertexIndex] = PatchFactoryMerged.vertexDataEncoder.encode(
-                        faceVertex.vertex.x + iX, faceVertex.vertex.y + iY, faceVertex.vertex.z + iZ,
-                        face.id,
-                        voxel.typeId,
-                        ao,
-                        [roundnessX, roundnessY],
-                    );
-                });
-
-                for (const index of Cube.faceIndices) {
-                    verticesData[iVertice++] = faceVerticesData[index];
-                }
+            for (const index of Cube.faceIndices) {
+                verticesData[iVertice++] = faceVerticesData[index];
             }
         }
 
