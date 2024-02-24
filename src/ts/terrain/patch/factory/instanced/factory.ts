@@ -219,9 +219,6 @@ class PatchFactoryInstanced extends PatchFactoryBase {
             geometry.setAttribute(PatchFactoryInstanced.verticesDataAttributeName, verticesBufferAttribute);
         }
 
-        geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
-        const boundingSphere = new THREE.Sphere();
-        geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
         return [{ geometry, material: this.materialTemplate }];
     }
 }

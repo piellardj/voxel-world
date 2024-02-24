@@ -12,12 +12,12 @@ type Color = {
 
 interface IVoxelMaterial {
     readonly color: Color;
-};
+}
 
 interface IVoxel {
     readonly position: Uint3;
     readonly typeId: number;
-};
+}
 
 interface IVoxelMap {
     readonly size: Uint3;

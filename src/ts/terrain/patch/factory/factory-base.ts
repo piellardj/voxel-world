@@ -4,7 +4,6 @@ import type { IVoxelMap, IVoxelMaterial } from "../../i-voxel-map";
 import type { PatchMaterial, PatchMaterialUniforms } from "../material";
 import { Patch } from "../patch";
 import * as Cube from "./cube";
-import { FaceType } from "./cube";
 import type { PackedUintFragment } from "./uint-packing";
 
 type GeometryAndMaterial = {
@@ -16,7 +15,7 @@ type FaceData = {
     readonly voxelWorldPosition: ConstVec3;
     readonly voxelLocalPosition: ConstVec3;
     readonly voxelType: number;
-    readonly faceType: FaceType;
+    readonly faceType: Cube.FaceType;
     readonly faceId: number;
     readonly verticesData: [VertexData, VertexData, VertexData, VertexData];
 };
@@ -84,9 +83,17 @@ abstract class PatchFactoryBase {
             return null;
         }
 
-        return new Patch(patchSize, patchData.map(patchData => {
-            const material = patchData.material.clone();
-            const mesh = new THREE.Mesh(patchData.geometry, material);
+        const boundingBox = new THREE.Box3(patchStart, patchEnd);
+        const boundingSphere = new THREE.Sphere();
+        boundingBox.getBoundingSphere(boundingSphere);
+
+        return new Patch(patchSize, patchData.map(geometryAndMaterial => {
+            const geometry = geometryAndMaterial.geometry;
+            geometry.boundingBox = boundingBox.clone();
+            geometry.boundingSphere = boundingSphere.clone();
+
+            const material = geometryAndMaterial.material.clone();
+            const mesh = new THREE.Mesh(geometryAndMaterial.geometry, material);
             mesh.frustumCulled = false;
             mesh.translateX(patchStart.x);
             mesh.translateY(patchStart.y);
@@ -103,7 +110,7 @@ abstract class PatchFactoryBase {
     protected *iterateOnVisibleFaces(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): Generator<FaceData> {
         for (const voxel of this.map.iterateOnVoxels(patchStart, patchEnd)) {
             const voxelWorldPosition = new THREE.Vector3(voxel.position.x, voxel.position.y, voxel.position.z);
-            const voxelLocalPosition = new THREE.Vector3().subVectors(voxelWorldPosition, patchStart)
+            const voxelLocalPosition = new THREE.Vector3().subVectors(voxelWorldPosition, patchStart);
 
             for (const face of Object.values(Cube.faces)) {
                 if (this.map.voxelExists(voxelWorldPosition.x + face.normal.x, voxelWorldPosition.y + face.normal.y, voxelWorldPosition.z + face.normal.z)) {
@@ -146,7 +153,7 @@ abstract class PatchFactoryBase {
     protected abstract computePatchData(patchStart: THREE.Vector3, patchEnd: THREE.Vector3): GeometryAndMaterial[];
 
     protected abstract disposeInternal(): void;
-};
+}
 
 export {
     PatchFactoryBase,

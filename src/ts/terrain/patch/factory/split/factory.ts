@@ -178,7 +178,7 @@ class PatchFactorySplit extends PatchFactoryBase {
             back: new Uint32Array(voxelsCountPerPatch * verticesPerFace * uint32PerVertex),
         };
 
-        let iVertice: Record<Cube.FaceType, number> = {
+        const iVertice: Record<Cube.FaceType, number> = {
             up: 0,
             down: 0,
             left: 0,
@@ -212,22 +212,15 @@ class PatchFactorySplit extends PatchFactoryBase {
             back: { geometry: new THREE.BufferGeometry(), material: this.materialsTemplates.back },
         };
 
-        const boundingBox = new THREE.Box3(patchStart, patchEnd);
-        const boundingSphere = new THREE.Sphere();
-        boundingBox.getBoundingSphere(boundingSphere);
-
         for (const [faceType, geometryAndMaterial] of Object.entries(geometriesAndMaterials) as [Cube.FaceType, GeometryAndMaterial][]) {
-            const faceVerticesData = verticesData[faceType];
-            const faceIVertice = iVertice[faceType];
-            const faceVerticesDataBuffer = new THREE.Uint32BufferAttribute(faceVerticesData.subarray(0, faceIVertice), 1, false);
-            faceVerticesDataBuffer.onUpload(() => { (faceVerticesDataBuffer.array as THREE.TypedArray | null) = null; });
+            const faceTypeVerticesData = verticesData[faceType];
+            const faceTypeIVertice = iVertice[faceType];
+            const faceTypeVerticesDataBuffer = new THREE.Uint32BufferAttribute(faceTypeVerticesData.subarray(0, faceTypeIVertice), 1, false);
+            faceTypeVerticesDataBuffer.onUpload(() => { (faceTypeVerticesDataBuffer.array as THREE.TypedArray | null) = null; });
 
             const geometry = geometryAndMaterial.geometry;
-            geometry.setAttribute(PatchFactorySplit.dataAttributeName, faceVerticesDataBuffer);
-            geometry.setDrawRange(0, faceIVertice);
-            geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
-            const boundingSphere = new THREE.Sphere();
-            geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
+            geometry.setAttribute(PatchFactorySplit.dataAttributeName, faceTypeVerticesDataBuffer);
+            geometry.setDrawRange(0, faceTypeIVertice);
         }
 
         return Object.values(geometriesAndMaterials);

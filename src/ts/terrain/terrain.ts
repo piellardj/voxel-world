@@ -13,7 +13,7 @@ enum EFactoryType {
     MERGED = "merged",
     INSTANCED = "instanced",
     MERGED_SPLIT = "merged_split",
-};
+}
 
 class Terrain {
     public readonly container: THREE.Group;

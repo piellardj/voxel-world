@@ -192,9 +192,6 @@ class PatchFactoryMerged extends PatchFactoryBase {
         verticesDataBuffer.onUpload(() => { (verticesDataBuffer.array as THREE.TypedArray | null) = null; });
         geometry.setAttribute(PatchFactoryMerged.dataAttributeName, verticesDataBuffer);
         geometry.setDrawRange(0, iVertice);
-        geometry.boundingBox = new THREE.Box3(patchStart, patchEnd);
-        const boundingSphere = new THREE.Sphere();
-        geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(boundingSphere);
         return [{ geometry, material: this.materialTemplate }];
     }
 }

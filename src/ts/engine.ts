@@ -70,7 +70,7 @@ class Engine {
         this.terrain = new Terrain(map);
         this.scene.add(this.terrain.container);
 
-        const applyEngine = () => {
+        const applyEngine = (): void => {
             this.terrain.clear();
             this.terrain.computePatches(this.parameters.factoryType);
             computeGeometryStats(this.scene);
