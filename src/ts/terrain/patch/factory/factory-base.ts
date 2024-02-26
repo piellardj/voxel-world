@@ -37,7 +37,7 @@ abstract class PatchFactoryBase {
     private readonly texture: THREE.Texture;
     private readonly noiseTexture: THREE.Texture;
 
-    protected readonly noiseResolution = 3;
+    protected readonly noiseResolution = 5;
     protected readonly noiseTypes = 16;
 
     protected readonly uniformsTemplate: PatchMaterialUniforms;

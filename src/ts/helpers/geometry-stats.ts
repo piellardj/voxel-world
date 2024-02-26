@@ -46,7 +46,7 @@ function computeGeometryStats(object: THREE.Object3D): void {
     console.log(`${objectsCount.toLocaleString()} objects.`);
     console.log(`${trianglesCount.toLocaleString()} triangles.`);
     console.log(`${verticesCount.toLocaleString()} vertices.`);
-    console.log(`${(totalBuffersSizeInByte / 1024 / 1024).toLocaleString()} MB of GPU buffers in total (${totalBuffersSizeInByte} bytes)`);
+    console.log(`${(totalBuffersSizeInByte / 1024 / 1024).toFixed(1)} MB of GPU buffers in total (${totalBuffersSizeInByte} bytes)`);
 }
 
 export {

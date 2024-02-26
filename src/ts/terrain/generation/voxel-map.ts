@@ -63,7 +63,7 @@ class VoxelMap implements IVoxelMap {
         }
         this.voxels = voxels;
 
-        console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels) in ${timer.elapsed()} ms.`);
+        console.log(`Generated map of size ${this.size.x}x${this.size.y}x${this.size.z} (${this.voxels.length.toLocaleString()} voxels) in ${timer.elapsed().toFixed()} ms.`);
     }
 
     getAllVoxelMaterials(): IVoxelMaterial[] {

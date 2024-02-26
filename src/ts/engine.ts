@@ -3,6 +3,7 @@ import { Debouncer } from "./helpers/debouncer";
 import { computeGeometryStats } from "./helpers/geometry-stats";
 import { Time } from "./helpers/time/time";
 import { getUrlNumber } from "./helpers/url-param";
+import { Postprocessing } from "./postprocessing/postprocessing";
 import { VoxelMap } from "./terrain/generation/voxel-map";
 import { PatchFactoryBase } from "./terrain/patch/factory/factory-base";
 import { EDisplayMode } from "./terrain/patch/patch";
@@ -15,12 +16,19 @@ class Engine {
     private readonly cameraControl: OrbitControls;
     private readonly scene: THREE.Scene;
     private readonly terrain: Terrain;
+    private readonly postProcessing: Postprocessing;
 
     private readonly stats: Stats;
     private readonly gui: GUI;
 
     private readonly parameters = {
         factoryType: EFactoryType.MERGED_SPLIT,
+        postprocessing: {
+            enabled: true,
+            outline: {
+                enabled: true,
+            },
+        },
     };
 
     public constructor() {
@@ -36,7 +44,7 @@ class Engine {
         });
         console.debug(`Is WebGL2: ${this.renderer.capabilities.isWebGL2}`);
 
-        this.renderer.setClearColor(0x000000);
+        this.renderer.setClearColor(0x888888);
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.camera.position.x = 100;
@@ -70,6 +78,8 @@ class Engine {
         this.terrain = new Terrain(map);
         this.scene.add(this.terrain.container);
 
+        this.postProcessing = new Postprocessing(this.renderer);
+
         const applyEngine = (): void => {
             this.terrain.clear();
             this.terrain.computePatches(this.parameters.factoryType);
@@ -77,6 +87,11 @@ class Engine {
         };
 
         this.gui = new GUI();
+        {
+            const folder = this.gui.addFolder("Postprocessing");
+            folder.open();
+            folder.add(this.parameters.postprocessing, "enabled");
+        }
         {
             const folder = this.gui.addFolder("Engine");
             folder.open();
@@ -134,7 +149,12 @@ class Engine {
 
     private render(): void {
         this.terrain.updateUniforms();
-        this.renderer.render(this.scene, this.camera);
+
+        if (this.parameters.postprocessing.enabled) {
+            this.postProcessing.render(this.scene, this.camera);
+        } else {
+            this.renderer.render(this.scene, this.camera);
+        }
     }
 }
 
