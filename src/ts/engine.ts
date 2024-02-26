@@ -92,14 +92,14 @@ class Engine {
         {
             const folder = this.gui.addFolder("Lighting");
             folder.open();
-            folder.add(this.terrain.parameters.lighting, "ambient", 0, 1);
-            folder.add(this.terrain.parameters.lighting, "diffuse", 0, 1);
+            folder.add(this.terrain.parameters.lighting, "ambient", 0, 3);
+            folder.add(this.terrain.parameters.lighting, "diffuse", 0, 3);
         }
         {
             const folder = this.gui.addFolder("Ambient occlusion");
             folder.open();
             folder.add(this.terrain.parameters.ao, "enabled");
-            folder.add(this.terrain.parameters.ao, "strength", 0, 1);
+            folder.add(this.terrain.parameters.ao, "strength", 0, 3);
             folder.add(this.terrain.parameters.ao, "spread", 0, 1);
         }
         {
