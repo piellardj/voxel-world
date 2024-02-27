@@ -7,22 +7,26 @@ import { Postprocessing } from "./postprocessing/postprocessing";
 import { VoxelMap } from "./terrain/generation/voxel-map";
 import { PatchFactoryBase } from "./terrain/patch/factory/factory-base";
 import { EDisplayMode } from "./terrain/patch/patch";
-import { EFactoryType, Terrain } from "./terrain/terrain";
-import { OrbitControls, Stats, THREE } from "./three-usage";
+import { EPatchFactoryType, Terrain } from "./terrain/terrain";
+import { OrbitControls, Stats, THREE, TransformControls } from "./three-usage";
 
 class Engine {
     private readonly renderer: THREE.WebGLRenderer;
     private readonly camera: THREE.PerspectiveCamera;
     private readonly cameraControl: OrbitControls;
     private readonly scene: THREE.Scene;
-    private readonly terrain: Terrain;
+    private terrain: Terrain;
     private readonly postProcessing: Postprocessing;
+
+    private readonly player: THREE.Mesh;
+    private readonly playerControls: TransformControls;
 
     private readonly stats: Stats;
     private readonly gui: GUI;
 
     private readonly parameters = {
-        factoryType: EFactoryType.MERGED_SPLIT,
+        factoryType: EPatchFactoryType.MERGED_SPLIT,
+        showEntireMap: true,
         postprocessing: {
             enabled: true,
             outline: {
@@ -47,10 +51,6 @@ class Engine {
         this.renderer.setClearColor(0x888888);
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.x = 100;
-        this.camera.position.y = 50;
-        this.camera.position.z = 100;
-        this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 
         const udpateRendererSize = new Debouncer(() => {
             const width = window.innerWidth;
@@ -64,25 +64,60 @@ class Engine {
 
         document.body.appendChild(this.renderer.domElement);
 
-        this.cameraControl = new OrbitControls(this.camera, this.renderer.domElement);
-        this.cameraControl.enablePan = true;
-        this.cameraControl.enableDamping = false;
-        this.cameraControl.dampingFactor = 0.05;
-
         this.scene = new THREE.Scene();
         this.scene.add(new THREE.AxesHelper(20));
 
         const mapWidth = getUrlNumber("mapwidth", 256);
         const mapHeight = getUrlNumber("mapheight", 256);
         const map = new VoxelMap(mapWidth, mapHeight, 16);
-        this.terrain = new Terrain(map);
+        this.terrain = new Terrain(map, this.parameters.factoryType);
         this.scene.add(this.terrain.container);
+
+        this.camera.lookAt(new THREE.Vector3(mapWidth / 2, 0, mapHeight / 2));
+        this.camera.position.x = mapWidth / 2 - 100;
+        this.camera.position.y = 100;
+        this.camera.position.z = mapHeight / 2 - 100;
+
+        this.cameraControl = new OrbitControls(this.camera, this.renderer.domElement);
+        this.cameraControl.enablePan = true;
+        this.cameraControl.enableDamping = false;
+        this.cameraControl.dampingFactor = 0.05;
+        this.cameraControl.target = new THREE.Vector3(mapWidth / 2, 0, mapHeight / 2);
+
+        this.player = new THREE.Mesh(new THREE.SphereGeometry(2), new THREE.MeshBasicMaterial({ color: "#FF0000" }));
+        this.player.position.x = mapWidth / 2;
+        this.player.position.y = map.size.y + 1;
+        this.player.position.z = mapHeight / 2
+        this.playerControls = new TransformControls(this.camera, this.renderer.domElement);
+        this.playerControls.addEventListener('dragging-changed', event => {
+            this.cameraControl.enabled = !event.value;
+        });
+        this.playerControls.attach(this.player);
+        this.scene.add(this.player);
+        this.scene.add(this.playerControls);
 
         this.postProcessing = new Postprocessing(this.renderer);
 
+        const updateVisibility = (): void => {
+            this.player.visible = !this.parameters.showEntireMap;
+            this.playerControls.visible = !this.parameters.showEntireMap;
+            this.playerControls.enabled = !this.parameters.showEntireMap;
+
+            if (this.parameters.showEntireMap) {
+                this.terrain.showEntireMap();
+            } else {
+                this.terrain.showMapAroundPosition(this.player.position, 64);
+            }
+        };
+        this.playerControls.addEventListener("change", updateVisibility);
+
         const applyEngine = (): void => {
-            this.terrain.clear();
-            this.terrain.computePatches(this.parameters.factoryType);
+            this.terrain.dispose();
+            this.scene.remove(this.terrain.container);
+
+            this.terrain = new Terrain(map, this.parameters.factoryType);
+            this.scene.add(this.terrain.container);
+            updateVisibility();
             computeGeometryStats(this.scene);
         };
 
@@ -95,8 +130,8 @@ class Engine {
         {
             const folder = this.gui.addFolder("Engine");
             folder.open();
-            folder.add(this.parameters, "factoryType", { merged: EFactoryType.MERGED, instanced: EFactoryType.INSTANCED, merged_split: EFactoryType.MERGED_SPLIT }).onChange(applyEngine);
-
+            folder.add(this.parameters, "factoryType", { merged: EPatchFactoryType.MERGED, instanced: EPatchFactoryType.INSTANCED, merged_split: EPatchFactoryType.MERGED_SPLIT }).onChange(applyEngine);
+            folder.add(this.parameters, "showEntireMap").onChange(updateVisibility);
         }
         {
             const folder = this.gui.addFolder("Voxels");

@@ -78,7 +78,7 @@ abstract class PatchFactoryBase {
         const boundingSphere = new THREE.Sphere();
         boundingBox.getBoundingSphere(boundingSphere);
 
-        return new Patch(patchSize, patchData.map(geometryAndMaterial => {
+        return new Patch(patchStart, patchSize, patchData.map(geometryAndMaterial => {
             const geometry = geometryAndMaterial.geometry;
             geometry.boundingBox = boundingBox.clone();
             geometry.boundingSphere = boundingSphere.clone();

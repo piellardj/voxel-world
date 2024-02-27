@@ -31,12 +31,15 @@ class Patch {
         },
     };
 
+    public readonly patchStart: ConstVec3;
     public readonly patchSize: ConstVec3;
+
     private gpuResources: {
         readonly patchMeshes: ReadonlyArray<PatchMesh>;
     } | null = null;
 
-    public constructor(patchSize: ConstVec3, patchMeshes: PatchMesh[]) {
+    public constructor(patchStart: ConstVec3, patchSize: ConstVec3, patchMeshes: PatchMesh[]) {
+        this.patchStart = patchStart;
         this.patchSize = patchSize;
         this.gpuResources = { patchMeshes };
 

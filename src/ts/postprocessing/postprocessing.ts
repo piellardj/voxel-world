@@ -12,7 +12,7 @@ class Postprocessing {
         this.renderer = renderer;
 
         const defaultWidth = 1;
-        const defaultHeight = 1.
+        const defaultHeight = 1.;
         this.renderTarget = new THREE.WebGLRenderTarget(defaultWidth, defaultHeight, {
             magFilter: THREE.LinearFilter,
             minFilter: THREE.LinearFilter,
